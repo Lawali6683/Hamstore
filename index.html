@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<meta name="description" content="Hamstore Integrated Services. All kinds of drinks, local and imported, bottled water and sachet water. Find a branch near you.">
+<title data-i18n="t.index">Hamstore Integrated Services - Drinks and Water</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="preconnect" href="https://i.imgur.com" crossorigin>
+<link rel="stylesheet" href="index.css">
+</head>
+<body data-device="phone">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hd" id="hd">
+  <a class="hlogo" href="index.html"><img src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore"></a>
+  <div class="lang" id="langSw" data-on="en" role="group" aria-label="Language">
+    <span class="thumb"></span>
+    <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+    <button type="button" data-lang-btn="ha" aria-pressed="false">HA</button>
+  </div>
+  <button class="hbtn" id="cartBtn" type="button" aria-label="Cart"><i class="fa-solid fa-bag-shopping"></i><b id="cartCount"></b></button>
+  <button class="hbtn" id="menuBtn" type="button" data-i18n-aria="menu.open" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+</header>
+
+<nav class="mnu" id="mnu" hidden aria-label="Menu">
+  <button class="x" id="menuX" type="button" data-i18n-aria="menu.close" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
+  <div class="in">
+    <a href="#top" data-go style="--i:0"><span class="n">01</span><i class="fa-solid fa-house"></i><span data-i18n="menu.home">Home</span></a>
+    <a href="#branches" data-go id="mBranches" style="--i:1"><span class="n">02</span><i class="fa-solid fa-store"></i><span data-i18n="menu.branches">Our branches</span></a>
+    <a href="#water" data-go id="mWater" style="--i:2"><span class="n">03</span><i class="fa-solid fa-droplet"></i><span data-i18n="menu.water">YouFresh water</span></a>
+    <a href="#drinks" data-go id="mDrinks" style="--i:3"><span class="n">04</span><i class="fa-solid fa-bottle-water"></i><span data-i18n="menu.drinks">Drinks</span></a>
+    <button class="ml" type="button" id="mReport" style="--i:4"><span class="n">05</span><i class="fa-solid fa-microphone-lines"></i><span data-i18n="menu.report">Send a report</span></button>
+    <a href="buy.html" id="mOrder" style="--i:5"><span class="n">06</span><i class="fa-solid fa-bag-shopping"></i><span data-i18n="menu.order">My order</span></a>
+    <a href="about.html" style="--i:6"><span class="n">07</span><i class="fa-solid fa-circle-info"></i><span data-i18n="menu.about">About us</span></a>
+    <a href="tel:08060767279" style="--i:7"><span class="n">08</span><i class="fa-solid fa-phone"></i><span data-i18n="menu.call">Call us</span></a>
+  </div>
+</nav>
+
+<main id="main">
+  <section class="hero" id="top">
+    <img src="https://i.imgur.com/byN89a1.png" alt="" fetchpriority="high" decoding="async">
+    <div class="wrap">
+      <span class="chipw"><i></i><span data-i18n="hero.welcome">Welcome to</span></span>
+      <h1>Hamstore Integrated Services</h1>
+      <div class="sl"><span><b data-i18n="hero.s1">We don't just sell drinks.</b></span><span><b data-i18n="hero.s2">We keep your shop stocked.</b></span></div>
+      <p data-i18n="hero.sub">Local and imported drinks, bottled water and sachet water, in every one of our branches.</p>
+      <div class="you"><i class="fa-solid fa-droplet"></i><span data-i18n="hero.you">New and improved YouFresh water: sachet and bottle.</span></div>
+      <div class="btns">
+        <a class="bt" href="#branches" data-go><i class="fa-solid fa-location-dot"></i><span data-i18n="hero.cta1">Find a branch</span></a>
+        <button class="bt red" type="button" id="heroReport"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="hero.cta2">Send a report</span></button>
+      </div>
+      <p class="note" data-i18n="hero.note">Can't find our products near you, or need them fast? Send us a report and we will reach you.</p>
+    </div>
+  </section>
+
+  <section class="sec s-branches" id="branches" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="br.title">Our branches</h2>
+      <p class="sub rv" data-i18n="br.sub">Tap a branch to see it on the map and find the way to it.</p>
+      <div class="bgrid2" id="bGrid"></div>
+    </div>
+  </section>
+
+  <section class="sec s-water" id="water" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="water.title">YouFresh Water</h2>
+      <p class="sub rv" data-i18n="water.sub">Clean, fresh and safe to drink. Sachet and bottle.</p>
+      <div class="wgrid" id="wGrid"></div>
+    </div>
+  </section>
+
+  <section class="sec s-drinks" id="drinks" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="drinks.title">Drinks for every taste</h2>
+      <p class="sub rv" data-i18n="drinks.sub">Tap a product to choose it. Tap the number to set how many cartons.</p>
+    </div>
+    <div class="mq" id="mq"><div class="mq-track" id="mqTrack"></div></div>
+  </section>
+
+  <section class="sec s-picks" id="picks" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="picks.title">Fresh picks</h2>
+      <p class="sub rv" data-i18n="picks.sub">Swipe with your finger to see more.</p>
+    </div>
+    <div class="wrap"><div class="ps" id="ps"></div></div>
+  </section>
+
+  <section class="sec s-deals" id="deals" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="deals.title">More to love</h2>
+      <p class="sub rv" data-i18n="deals.sub">More products from Hamstore.</p>
+      <div class="tgrid" id="tGrid"></div>
+    </div>
+  </section>
+
+  <section class="sec s-spot" id="spot" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="spot.title">Branch spotlight</h2>
+      <p class="sub rv" data-i18n="spot.sub">Our products are available in every branch.</p>
+      <div class="spot">
+        <div class="sf" id="spImgBox" role="button" tabindex="0"><img id="spImg" alt=""></div>
+        <div class="si"><h3 id="spName"></h3><p id="spAd"></p><div class="chp" id="spChips"></div>
+          <button class="bt" type="button" id="spOpen"><i class="fa-solid fa-map-location-dot"></i><span data-i18n="br.map">Map</span></button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec s-all" id="all" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="all.title">Everything we sell</h2>
+      <p class="sub rv" data-i18n="all.sub">The full list, newest first.</p>
+      <div class="mgrid" id="mGrid"></div>
+      <button class="morebtn" id="moreBtn" type="button" hidden><span data-i18n="all.more">Show more</span></button>
+    </div>
+  </section>
+
+  <section class="sec s-band" id="band">
+    <div class="wrap">
+      <h2 data-i18n="band.title">Can't find our drinks near you?</h2>
+      <p data-i18n="band.text">Send a voice note or a message. Tell us where you are and we will help.</p>
+      <button class="bt" type="button" id="bandReport"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="band.btn">Send a report</span></button>
+    </div>
+  </section>
+</main>
+
+<footer class="ft">
+  <div class="wrap">
+    <div><img src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore"><p data-i18n="ft.tag">Drinks and water for every home and shop.</p></div>
+    <div><h4 data-i18n="ft.about">About us</h4><a href="about.html"><i class="fa-solid fa-circle-info"></i><span data-i18n="ft.about">About us</span></a><a href="buy.html"><i class="fa-solid fa-bag-shopping"></i><span data-i18n="menu.order">My order</span></a></div>
+    <div><h4 data-i18n="ft.contact">Contact</h4><a href="mailto:hamstores755@gmail.com"><i class="fa-solid fa-envelope"></i>hamstores755@gmail.com</a><a href="tel:08060767279"><i class="fa-solid fa-phone"></i>08060767279</a><div id="ftPhones"></div></div>
+    <div class="cp">&copy; <span id="yr"></span> Hamstore Integrated Services. <span data-i18n="ft.rights">All rights reserved.</span></div>
+  </div>
+</footer>
+
+<div class="dock" id="dock" aria-live="polite">
+  <div class="dmini" id="dMini"></div>
+  <div class="dbar">
+    <button class="tg" id="dTg" type="button" aria-label="Toggle selection"><i class="fa-solid fa-chevron-up"></i></button>
+    <div class="tx"><small id="dCount"></small><b id="dTotal"></b></div>
+    <button class="dclr" id="dClr" type="button" data-i18n="cart.clear">Clear</button>
+    <a class="pay" id="dPay" href="buy.html"><i class="fa-solid fa-credit-card"></i><span data-i18n="cart.pay">Pay now</span></a>
+  </div>
+</div>
+
+<div class="ov" id="bv" role="dialog" aria-modal="true" aria-labelledby="bvTitle">
+  <div class="ovbar"><button class="bk" id="bvBack" type="button" data-i18n-aria="bv.back" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button><b id="bvTitle"></b><span class="stt" id="bvSt"></span></div>
+  <div class="ovbody">
+    <div class="bvh"><img id="bvImg" alt=""><div class="ad" id="bvAd"></div></div>
+    <div class="bvb"><div class="trk"><i class="a fa-solid fa-person"></i><i class="m fa-solid fa-truck-fast"></i><i class="b fa-solid fa-store"></i></div><p id="bvMsg"></p><small id="bvSub"></small></div>
+    <div class="bvmap" id="bvMap"></div>
+    <div class="bvi">
+      <p class="hint" data-i18n="bv.zoom">Pinch with two fingers or use + and − to zoom the map.</p>
+      <h4 data-i18n="bv.phones">Phone numbers</h4>
+      <div class="phs" id="bvPh"></div>
+      <p id="bvHr"></p>
+      <div class="btns"><a class="bt" id="bvDir" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i><span data-i18n="bv.dir">Open in Google Maps</span></a><button class="bt red" id="bvRep" type="button"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="br.report">Report</span></button></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="rp" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+  <div class="ovbar"><button class="bk" id="rpBack" type="button" data-i18n-aria="bv.back" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button><b id="rpTitle" data-i18n="rp.title">Send a report</b></div>
+  <div class="ovbody">
+    <div class="rpw" id="rpForm">
+      <h2 data-i18n="rp.title">Send a report</h2>
+      <p class="s" data-i18n="rp.sub">Tell us what you need. Speak or write.</p>
+      <p class="s" id="rpAt" hidden></p>
+      <div class="tps" id="rpTypes">
+        <button class="tp" type="button" data-k="stock" aria-pressed="true" data-i18n="rp.t1">Not available here</button>
+        <button class="tp" type="button" data-k="order" aria-pressed="false" data-i18n="rp.t2">I need it fast</button>
+        <button class="tp" type="button" data-k="message" aria-pressed="false" data-i18n="rp.t3">Other</button>
+      </div>
+      <div class="micw">
+        <button class="mic" id="mic" type="button" aria-label="Record"><i class="fa-solid fa-microphone"></i></button>
+        <div class="tm" id="micT">0:00</div>
+        <p class="s" id="micS" data-i18n="rp.mic0">Tap to record a voice note</p>
+        <audio id="micA" controls hidden></audio>
+        <button class="tp" id="micR" type="button" hidden data-i18n="rp.redo">Record again</button>
+      </div>
+      <div class="fld"><textarea id="rpText" maxlength="600" data-i18n-ph="rp.text" placeholder="Write your message here"></textarea></div>
+      <div class="fld"><input id="rpName" type="text" maxlength="80" autocomplete="name" data-i18n-ph="rp.name" placeholder="Your name"></div>
+      <div class="fld"><input id="rpPhone" type="tel" autocomplete="tel" data-i18n-ph="rp.phone" placeholder="Phone number"></div>
+      <div class="locr"><button class="tp" id="rpLoc" type="button"><i class="fa-solid fa-location-crosshairs"></i> <span data-i18n="rp.loc">Share my location</span></button><span class="stt2" id="rpLocS"></span></div>
+      <button class="bt red" id="rpSend" type="button"><i class="fa-solid fa-paper-plane"></i><span data-i18n="rp.send">Send report</span></button>
+    </div>
+    <div class="rpw okp" id="rpOk" hidden>
+      <div class="mk"><i class="fa-solid fa-check"></i></div>
+      <h2 data-i18n="rp.okT">Report received</h2>
+      <p class="s" data-i18n="rp.okP">Thank you. We will call you soon. Your reference:</p>
+      <div class="rf" id="rpRef"></div>
+      <button class="bt" id="rpNew" type="button"><i class="fa-solid fa-plus"></i><span data-i18n="rp.new">Send another</span></button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="index.js"></script>
+</body>
+</html>
