@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Register vehicle</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="ui2.css">
+</head>
+<body>
+<main class="wrap" style="max-width:720px">
+  <div id="ok"></div>
+  <div class="topline">
+    <h2>Register a vehicle</h2>
+    <a class="ghost sm" href="adminsend.html"><i class="fa-solid fa-paper-plane"></i>Vehicles and messages</a>
+  </div>
+
+  <section class="panel formcard" id="formCard">
+    <button class="btn full" type="button" id="open"><i class="fa-solid fa-plus"></i>Register a new vehicle</button>
+    <form id="form" hidden novalidate>
+      <div class="field"><i class="fa-solid fa-truck lead"></i><input id="vName" type="text" maxlength="80" placeholder="Vehicle name"></div>
+      <div class="field"><i class="fa-solid fa-user lead"></i><input id="dName" type="text" maxlength="80" placeholder="Driver name" autocomplete="off"></div>
+      <div class="field"><i class="fa-solid fa-phone lead"></i><input id="dPhone" type="tel" placeholder="Driver phone number" autocomplete="off"></div>
+      <div class="removable" id="phone2Wrap" hidden>
+        <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="dPhone2" type="tel" placeholder="Second phone number (optional)" autocomplete="off"></div>
+        <button class="rm" type="button" id="rmPhone" aria-label="Remove second number"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <button class="plus" type="button" id="addPhone"><i class="fa-solid fa-plus"></i>Add another number</button>
+      <div class="field"><i class="fa-solid fa-hashtag lead"></i><input id="vPlate" type="text" maxlength="20" placeholder="Plate number" autocapitalize="characters" autocomplete="off"></div>
+      <div class="field"><i class="fa-solid fa-envelope lead"></i><input id="vEmail" type="email" placeholder="Driver email" autocomplete="off"></div>
+
+      <span class="lab">Photos (tap the camera to take each one)</span>
+      <div id="sDriver"></div>
+      <div id="sPlate"></div>
+      <div id="sVehicle"></div>
+      <div id="sId"></div>
+
+      <div class="acts">
+        <button class="btn full" type="submit"><i class="fa-solid fa-paper-plane"></i>Submit</button>
+        <button class="ghost" type="button" id="cancel">Cancel</button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="adminveh.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="ui2.css">
+</head>
+<body>
+<main>
+  <section class="stage" id="codeBox" hidden>
+    <div class="panel box center">
+      <img class="logo xl" src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore">
+      <h2>Enter access code</h2>
+      <p class="sub">Type the 6-digit code to open the admin area.</p>
+      <div class="code" id="code">
+        <input inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Digit 1">
+        <input inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Digit 2">
+        <input inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Digit 3">
+        <input inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Digit 4">
+        <input inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Digit 5">
+        <input inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Digit 6">
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap" id="hub" hidden>
+    <div class="hubhead">
+      <h1>Hamstore admin</h1>
+      <p>Everything you need to run the business. Pick a page to open it.</p>
+    </div>
+    <div class="hubgrid">
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-boxes-stacked"></i></div><h3>Posts</h3><p>Add, edit and delete the products shown on the website.</p><a class="btn" href="adminpost.html">Open posts</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-store"></i></div><h3>Branches</h3><p>Add branches with photo, phone and a map pin.</p><a class="btn" href="adminbranch.html">Open branches</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-inbox"></i></div><h3>Requests</h3><p>See orders, no-stock reports and messages. Call, see the map, mark done.</p><a class="btn" href="adminrep.html">Open requests</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-map-location-dot"></i></div><h3>Fleet map</h3><p>Watch live vehicles, see offline ones and replay any trip.</p><a class="btn" href="adminmap.html">Open fleet map</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-id-card"></i></div><h3>Register vehicle</h3><p>Register a company vehicle with driver details and camera photos.</p><a class="btn" href="adminveh.html">Register a vehicle</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-paper-plane"></i></div><h3>Vehicles and messages</h3><p>Send the driver ID by email, SMS or Gmail. See who has confirmed.</p><a class="btn" href="adminsend.html">Open messages</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Payments</h3><p>See customer payments, screenshots and totals. Mark them completed or delete them.</p><a class="btn" href="adminpay.html">Open payments</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-mobile-screen"></i></div><h3>Driver tracker</h3><p>The page drivers use on their phone to share the vehicle location.</p><a class="btn" href="tracker.html">Open tracker</a></article>
+      <article class="panel hubcard"><div class="ico"><i class="fa-solid fa-globe"></i></div><h3>Website</h3><p>See the public Hamstore website as customers see it.</p><a class="btn" href="index.html">Open website</a></article>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="admin.js"></script>
+</body>
+</html>

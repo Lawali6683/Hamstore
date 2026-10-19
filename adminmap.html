@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Fleet map</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="ui2.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="topline">
+    <h2>Fleet map</h2>
+    <a class="ghost sm" href="adminveh.html"><i class="fa-solid fa-plus"></i>Register vehicle</a>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="nLive">0</b><small>Live</small></div>
+    <div class="stat"><b id="nOff">0</b><small>Offline</small></div>
+    <div class="stat"><b id="nAll">0</b><small>Total</small></div>
+  </div>
+  <div class="chips" id="tabs" style="margin:0">
+    <button class="chip on" data-t="live">Live</button>
+    <button class="chip" data-t="off">Offline</button>
+    <button class="chip" data-t="all">All</button>
+  </div>
+  <div class="mapgrid">
+    <div>
+      <div class="vitems" id="list"></div>
+      <div class="empty" id="empty" hidden><i class="fa-solid fa-truck" style="font-size:28px"></i><p>No vehicles here.</p></div>
+    </div>
+    <div>
+      <div class="map fleet" id="fmap"></div>
+      <div class="panel vdetail" id="detail" hidden></div>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="adminmap.js"></script>
+</body>
+</html>

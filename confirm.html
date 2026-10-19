@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore - Confirm your vehicle</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="ui2.css">
+</head>
+<body>
+<main class="stage">
+  <section class="panel box center" style="width:min(480px,100%)">
+    <img class="logo xl" src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore">
+    <h2>Confirm your vehicle</h2>
+    <p class="sub">Follow the steps below on the phone that stays in the vehicle.</p>
+
+    <div class="vbox" id="vbox" hidden><b id="vTitle"></b><span class="meta" id="vCode"></span></div>
+
+    <div id="manual" hidden>
+      <div class="field"><i class="fa-solid fa-hashtag lead"></i><input id="mCode" type="text" placeholder="Your ID, for example Ham/26/58397" autocomplete="off"></div>
+      <div class="field"><i class="fa-solid fa-key lead"></i><input id="mKey" type="text" placeholder="Key from your link" autocomplete="off"></div>
+    </div>
+
+    <div class="steps">
+      <div class="step" data-step="1"><span class="num">1</span><div><h4>Check your ID</h4><p>We check the ID we sent you.</p></div><button class="btn" type="button">Verify my ID</button></div>
+      <div class="step lock" data-step="2"><span class="num">2</span><div><h4>Allow location</h4><p>This lets Hamstore see where the vehicle is.</p></div><button class="btn" type="button">Allow location</button></div>
+      <div class="step lock" data-step="3"><span class="num">3</span><div><h4>Keep the screen on</h4><p>Stops the phone from sleeping while tracking.</p></div><button class="btn" type="button">Keep screen on</button></div>
+      <div class="step lock" data-step="4"><span class="num">4</span><div><h4>Start tracking</h4><p>Saves your ID on this phone and starts sharing location.</p></div><button class="btn red" type="button">Start tracking</button></div>
+    </div>
+    <p class="note">Tip: add this page to your home screen from the browser menu so you can open it quickly.</p>
+  </section>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="confirm.js"></script>
+</body>
+</html>

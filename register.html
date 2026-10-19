@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Login and Register</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+</head>
+<body>
+<main class="stage">
+  <section class="panel box">
+    <div class="head">
+      <img class="logo xl" src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore">
+      <p>Admin access for Hamstore staff</p>
+    </div>
+
+    <div class="switch" id="switch" data-tab="login">
+      <span class="slider"></span>
+      <button type="button" class="on" data-tab="login">Login</button>
+      <button type="button" data-tab="register">Register</button>
+    </div>
+
+    <form id="loginForm" class="pane on" novalidate>
+      <div class="field"><i class="fa-solid fa-envelope lead"></i><input id="lEmail" type="email" placeholder="Email" autocomplete="email"></div>
+      <div class="field"><i class="fa-solid fa-lock lead"></i><input id="lPass" type="password" placeholder="Password" autocomplete="current-password"><button type="button" class="eye" data-eye="lPass" aria-label="Show password"><i class="fa-solid fa-eye"></i></button></div>
+      <button class="btn full" type="submit"><i class="fa-solid fa-right-to-bracket"></i>Log in</button>
+    </form>
+
+    <form id="regForm" class="pane" novalidate>
+      <div class="field"><i class="fa-solid fa-user lead"></i><input id="rName" type="text" placeholder="Full name" autocomplete="name"></div>
+      <div class="field"><i class="fa-solid fa-envelope lead"></i><input id="rEmail" type="email" placeholder="Email" autocomplete="email"></div>
+      <div class="field"><i class="fa-solid fa-lock lead"></i><input id="rPass" type="password" placeholder="Password (8+ characters)" autocomplete="new-password"><button type="button" class="eye" data-eye="rPass" aria-label="Show password"><i class="fa-solid fa-eye"></i></button></div>
+      <div class="field"><i class="fa-solid fa-shield-halved lead"></i><input id="rPass2" type="password" placeholder="Confirm password" autocomplete="new-password"><button type="button" class="eye" data-eye="rPass2" aria-label="Show password"><i class="fa-solid fa-eye"></i></button></div>
+      <button class="btn red full" type="submit"><i class="fa-solid fa-user-plus"></i>Create account</button>
+    </form>
+
+    <p class="foot"><a href="gate.html">Back to access gate</a></p>
+  </section>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="register.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Branches</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+</head>
+<body>
+<main class="wrap split">
+  <section class="panel formcard">
+    <h2 id="formTitle">New branch</h2>
+    <p class="sub" id="formSub">Branches show on the website and on its map.</p>
+    <form id="form" novalidate>
+      <div class="field"><i class="fa-solid fa-store lead"></i><input id="fName" type="text" maxlength="80" placeholder="Branch name"></div>
+      <div class="field"><i class="fa-solid fa-phone lead"></i><input id="fPhone" type="tel" placeholder="Branch phone number" autocomplete="off"></div>
+      <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="fPhone2" type="tel" placeholder="Second phone number (optional)" autocomplete="off"></div>
+      <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="fPhone3" type="tel" placeholder="Third phone number (optional)" autocomplete="off"></div>
+      <span class="lab">Opening and closing time (optional)</span>
+      <div style="display:flex;gap:10px;margin-bottom:14px"><div class="field" style="flex:1;margin:0"><i class="fa-solid fa-sun lead"></i><input id="fOpens" type="time"></div><div class="field" style="flex:1;margin:0"><i class="fa-solid fa-moon lead"></i><input id="fCloses" type="time"></div></div>
+      <div class="field"><i class="fa-solid fa-globe lead"></i><input id="fLink" type="url" placeholder="Branch link (optional)"></div>
+      <div id="imgField"></div>
+      <div class="field"><i class="fa-solid fa-location-dot lead"></i><input id="fAddr" type="text" maxlength="200" placeholder="Full address, town and state"></div>
+      <button class="ghost full" type="button" id="find" style="width:100%;margin-bottom:12px"><i class="fa-solid fa-magnifying-glass-location"></i>Find on map</button>
+      <div class="map" id="map"></div>
+      <p class="sub" id="pin">Tap the map or drag the pin to set the exact spot.</p>
+      <span class="lab">This branch sells (optional)</span>
+      <div class="chips" id="chips"><button type="button" class="chip" data-k="water"><i class="fa-solid fa-droplet"></i> Water</button><button type="button" class="chip" data-k="drinks"><i class="fa-solid fa-bottle-water"></i> Drinks</button></div>
+      <div class="acts">
+        <button class="btn full" type="submit" id="submitBtn"><i class="fa-solid fa-paper-plane"></i><span>Add branch</span></button>
+        <button class="ghost" type="button" id="cancelEdit" hidden>Cancel editing</button>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <div class="listhead"><h2>All branches</h2><span class="count" id="count">0</span></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden><i class="fa-solid fa-store" style="font-size:28px"></i><p>No branches yet. Add your first one.</p></div>
+    <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
+  </section>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="adminbranch.js"></script>
+</body>
+</html>
