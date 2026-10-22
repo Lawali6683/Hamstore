@@ -1,6 +1,6 @@
 import { app } from "./firebase.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { getDatabase, ref, get, update, runTransaction } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { getDatabase, ref, get, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 import { requireAdmin } from "./guard.js";
 import { toast, esc } from "./allui.js";
 import { photoSlot, makeCode, codeKey, randomKey, plateKey, confirmLink, messageText, smsHref, mailHref, emailDriver } from "./ui2.js";
@@ -47,9 +47,14 @@ $("rmPhone").onclick = () => {
   $("addPhone").hidden = false;
 };
 
-async function nextId() {
-  const res = await runTransaction(ref(db, "counters/vehicle"), n => (n || 0) + 1);
-  return "VEH" + String(res.snapshot.val()).padStart(4, "0");
+async function createUnique(counter, prefix, path, data) {
+  for (let i = 0; i < 25; i++) {
+    const res = await runTransaction(ref(db, "counters/" + counter), n => (n || 0) + 1);
+    const id = prefix + String(res.snapshot.val()).padStart(4, "0");
+    const made = await runTransaction(ref(db, path + "/" + id), current => (current === null ? data : undefined));
+    if (made.committed) return id;
+  }
+  throw new Error("id");
 }
 
 async function freshCode() {
@@ -137,14 +142,19 @@ $("form").addEventListener("submit", async e => {
     const [driverPhoto, platePhoto, vehiclePhoto, idPhoto] = await Promise.all([slots.driver.upload(), slots.plate.upload(), slots.vehicle.upload(), slots.id.upload()]);
     hideLoading();
     showLoading("Saving...");
-    const id = await nextId();
     const code = await freshCode();
     const key = randomKey();
     const rec = { name, driverName, phone, plate, email, code, key, createdAt: Date.now(), photos: { plate: platePhoto, vehicle: vehiclePhoto } };
     if (phone2) rec.phone2 = phone2;
     if (driverPhoto) rec.photos.driver = driverPhoto;
     if (idPhoto) rec.photos.id = idPhoto;
-    await update(ref(db), { ["vehicles/" + id]: rec, ["codes/" + codeKey(code)]: id, ["plates/" + pk]: id });
+    const id = await createUnique("vehicle", "VEH", "vehicles", rec);
+    try {
+      await update(ref(db), { ["codes/" + codeKey(code)]: id, ["plates/" + pk]: id });
+    } catch (err) {
+      await remove(ref(db, "vehicles/" + id));
+      throw err;
+    }
     resetForm();
     toast("success", "Vehicle registered", code);
     showSuccess({ ...rec, id, link: confirmLink(code, key) });
