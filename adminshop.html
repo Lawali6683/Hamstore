@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Online buying</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="ui2.css">
+</head>
+<body>
+<main class="wrap" style="max-width:720px">
+  <div class="topline"><h2>Online buying</h2></div>
+
+  <section class="panel shopcard" id="card">
+    <div class="bigsw" aria-hidden="true"><i></i></div>
+    <h3 id="state">Loading...</h3>
+    <p class="sub" id="desc" style="margin:0"></p>
+    <div class="keybox" id="idv"></div>
+    <button class="btn full" id="toggle" type="button" disabled><i class="fa-solid fa-power-off"></i><span>Please wait</span></button>
+    <p class="meta" id="upd"></p>
+  </section>
+
+  <section class="panel formcard">
+    <h2>What each setting does</h2>
+    <p class="sub"><b>open: yes</b> - customers can choose products, pay and send their proof on the website.</p>
+    <p class="sub" style="margin:0"><b>open: no</b> - the website still shows every product and price, but the buy buttons are hidden. If a customer taps a product, the website shows the branch nearest to him. The payment page also refuses new orders.</p>
+  </section>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="adminshop.js"></script>
+</body>
+</html>
