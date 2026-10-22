@@ -10,6 +10,7 @@ let items = [];
 let accounts = [];
 let shot = null;
 let order = null;
+let closed = false;
 
 function wanted() {
   const out = new Map();
@@ -39,11 +40,12 @@ function removeFromCart(id) {
 }
 
 function renderItems() {
-  const has = items.length > 0;
+  const has = items.length > 0 && !closed;
   $("itemsBox").hidden = !has;
   $("payBox").hidden = !has;
   $("formBox").hidden = !has;
-  $("emptyBox").hidden = has || !!order;
+  $("emptyBox").hidden = has || !!order || closed;
+  $("closedBox").hidden = !closed || !!order;
   let total = 0;
   $("ol").innerHTML = items.map(i => {
     const line = i.price * i.qty;
@@ -176,7 +178,7 @@ $("form").addEventListener("submit", async e => {
     });
     const j = await res.json();
     if (!j.ok) {
-      const msg = j.code === "gone" ? t("buy.e.gone") : j.code === "wait" ? t("e.wait") : j.code === "phone" ? t("buy.e.phone") : t("e.server");
+      const msg = j.code === "closed" ? t("e.closed") : j.code === "gone" ? t("buy.e.gone") : j.code === "wait" ? t("e.wait") : j.code === "phone" ? t("buy.e.phone") : t("e.server");
       return toast("error", msg);
     }
     order = { code: j.code, total: j.total, items: j.items, createdAt: j.createdAt, name, phone, address };
@@ -210,6 +212,7 @@ try {
   const snap = await get(ref(db, "settings/payment")).catch(() => null);
   accounts = [];
   if (snap) snap.forEach(c => { const v = c.val(); if (v && v.number) accounts.push(v); });
+  closed = (await get(ref(db, "settings/shop/open")).then(s => s.val()).catch(() => null)) === "no";
 } catch (e) {
   toast("error", t("err.net"));
 }
