@@ -13,5 +13,5 @@ export async function onRequestGet({ request }) {
   let lang = "en";
   if (country === "NE") lang = "ha";
   else if (country === "NG" && NORTH.some(n => region.includes(n))) lang = "ha";
-  return reply({ lang, country, region: cf.region || "" });
+  return reply({ lang, country, region: cf.region || "", lat: cf.latitude || null, lng: cf.longitude || null });
 }
