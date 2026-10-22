@@ -67,7 +67,8 @@ const PAGES = [
   ["map", "adminmap.html", "fa-map-location-dot", "Fleet map"],
   ["veh", "adminveh.html", "fa-id-card", "Register vehicle"],
   ["send", "adminsend.html", "fa-paper-plane", "Vehicles and messages"],
-  ["pay", "adminpay.html", "fa-money-check-dollar", "Payments"]
+  ["pay", "adminpay.html", "fa-money-check-dollar", "Payments"],
+  ["shop", "adminshop.html", "fa-toggle-on", "Online buying"]
 ];
 
 export function adminHeader(active) {
