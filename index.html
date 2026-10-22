@@ -3,14 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#06130d">
+<meta name="theme-color" content="#04100b">
 <meta name="description" content="Hamstore Integrated Services. All kinds of drinks, local and imported, bottled water and sachet water. Find a branch near you.">
 <title data-i18n="t.index">Hamstore Integrated Services - Drinks and Water</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
 <link rel="preconnect" href="https://i.imgur.com" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
+<link rel="modulepreload" href="index.js">
+<link rel="modulepreload" href="pub.js">
+<link rel="modulepreload" href="loading.js">
+<link rel="modulepreload" href="firebase.js">
 <link rel="stylesheet" href="index.css">
+<noscript><style>#boot{display:none!important}</style></noscript>
 </head>
 <body data-device="phone">
+
+<div id="boot" role="status" aria-live="polite">
+  <img src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore">
+  <div class="bar"><i></i></div>
+  <p id="bootT">Loading...</p>
+  <button type="button" onclick="location.reload()" id="bootR">Reload</button>
+</div>
+<script>
+(function(){
+  var ha=/^ha/i.test(navigator.language||"");
+  var t=document.getElementById("bootT"), r=document.getElementById("bootR");
+  if(ha){t.textContent="Ana lodawa...";r.textContent="Sake lodawa";}
+  window.__bootFail=function(){
+    t.textContent=ha?"Shafin yana ɗaukar lokaci. Ka duba intanet ɗinka.":"This is taking long. Check your internet.";
+    document.getElementById("boot").classList.add("slow");
+  };
+  setTimeout(function(){if(document.getElementById("boot"))window.__bootFail();},12000);
+})();
+</script>
+
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="hd" id="hd">
@@ -22,6 +49,7 @@
   </div>
   <button class="hbtn" id="cartBtn" type="button" aria-label="Cart"><i class="fa-solid fa-bag-shopping"></i><b id="cartCount"></b></button>
   <button class="hbtn" id="menuBtn" type="button" data-i18n-aria="menu.open" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+  <div class="prog" id="prog"></div>
 </header>
 
 <nav class="mnu" id="mnu" hidden aria-label="Menu">
@@ -31,17 +59,25 @@
     <a href="#branches" data-go id="mBranches" style="--i:1"><span class="n">02</span><i class="fa-solid fa-store"></i><span data-i18n="menu.branches">Our branches</span></a>
     <a href="#water" data-go id="mWater" style="--i:2"><span class="n">03</span><i class="fa-solid fa-droplet"></i><span data-i18n="menu.water">YouFresh water</span></a>
     <a href="#drinks" data-go id="mDrinks" style="--i:3"><span class="n">04</span><i class="fa-solid fa-bottle-water"></i><span data-i18n="menu.drinks">Drinks</span></a>
-    <button class="ml" type="button" id="mReport" style="--i:4"><span class="n">05</span><i class="fa-solid fa-microphone-lines"></i><span data-i18n="menu.report">Send a report</span></button>
-    <a href="buy.html" id="mOrder" style="--i:5"><span class="n">06</span><i class="fa-solid fa-bag-shopping"></i><span data-i18n="menu.order">My order</span></a>
-    <a href="about.html" style="--i:6"><span class="n">07</span><i class="fa-solid fa-circle-info"></i><span data-i18n="menu.about">About us</span></a>
-    <a href="tel:08060767279" style="--i:7"><span class="n">08</span><i class="fa-solid fa-phone"></i><span data-i18n="menu.call">Call us</span></a>
+    <a href="#range" data-go style="--i:4"><span class="n">05</span><i class="fa-solid fa-boxes-stacked"></i><span data-i18n="menu.range">Our range</span></a>
+    <a href="#steps" data-go style="--i:5"><span class="n">06</span><i class="fa-solid fa-list-check"></i><span data-i18n="menu.steps">How to order</span></a>
+    <a href="#faq" data-go style="--i:6"><span class="n">07</span><i class="fa-solid fa-circle-question"></i><span data-i18n="menu.faq">Questions</span></a>
+    <a href="#partner" data-go style="--i:7"><span class="n">08</span><i class="fa-solid fa-handshake"></i><span data-i18n="menu.partner">Work with us</span></a>
+    <button class="ml" type="button" id="mReport" style="--i:8"><span class="n">09</span><i class="fa-solid fa-microphone-lines"></i><span data-i18n="menu.report">Send a report</span></button>
+    <a href="buy.html" id="mOrder" style="--i:9"><span class="n">10</span><i class="fa-solid fa-bag-shopping"></i><span data-i18n="menu.order">My order</span></a>
+    <a href="about.html" style="--i:10"><span class="n">11</span><i class="fa-solid fa-circle-info"></i><span data-i18n="menu.about">About us</span></a>
+    <a href="tel:08060767279" style="--i:11"><span class="n">12</span><i class="fa-solid fa-phone"></i><span data-i18n="menu.call">Call us</span></a>
   </div>
 </nav>
 
 <main id="main">
   <section class="hero" id="top">
-    <img src="https://i.imgur.com/byN89a1.png" alt="" fetchpriority="high" decoding="async">
-    <div class="wrap">
+    <div class="banner">
+      <img src="https://i.imgur.com/byN89a1.png" alt="Hamstore" fetchpriority="high" decoding="async">
+      <canvas class="net" id="netHero" aria-hidden="true"></canvas>
+      <div class="wifi" aria-hidden="true"><i></i><i></i><i></i></div>
+    </div>
+    <div class="wrap hcard">
       <span class="chipw"><i></i><span data-i18n="hero.welcome">Welcome to</span></span>
       <h1>Hamstore Integrated Services</h1>
       <div class="sl"><span><b data-i18n="hero.s1">We don't just sell drinks.</b></span><span><b data-i18n="hero.s2">We keep your shop stocked.</b></span></div>
@@ -55,6 +91,14 @@
     </div>
   </section>
 
+  <div class="tkwrap" aria-hidden="true"><div class="s-ticker"><div class="tk-track" id="tkTrack"></div></div></div>
+
+  <div class="wrap closedbar" id="closedBar" hidden>
+    <i class="fa-solid fa-store-slash"></i>
+    <p data-i18n="shop.closed">Online buying is closed right now. You can see the prices. Please go to your nearest branch.</p>
+    <button class="bt" type="button" id="cbNear"><i class="fa-solid fa-location-crosshairs"></i><span data-i18n="shop.nearest">Show my nearest branch</span></button>
+  </div>
+
   <section class="sec s-branches" id="branches" hidden>
     <div class="wrap">
       <h2 class="rv" data-i18n="br.title">Our branches</h2>
@@ -64,6 +108,7 @@
   </section>
 
   <section class="sec s-water" id="water" hidden>
+    <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="wrap">
       <h2 class="rv" data-i18n="water.title">YouFresh Water</h2>
       <p class="sub rv" data-i18n="water.sub">Clean, fresh and safe to drink. Sachet and bottle.</p>
@@ -71,12 +116,52 @@
     </div>
   </section>
 
+  <section class="sec s-fill" id="fill">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="fill.title">Pure and fresh, bottle by bottle</h2>
+      <p class="sub rv" data-i18n="fill.sub">Scroll down to fill the bottle. YouFresh comes in sachet and in bottle.</p>
+      <div class="fillgrid">
+        <div class="fbwrap rv rv-z">
+          <svg class="fb" viewBox="0 0 200 420" role="img" aria-label="Water bottle">
+            <defs>
+              <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#0369a1"/></linearGradient>
+              <clipPath id="cb"><path d="M78 26h44v30c0 14 20 30 20 60v250c0 24-20 36-42 36s-42-12-42-36V116c0-30 20-46 20-60z"/></clipPath>
+            </defs>
+            <path d="M78 26h44v30c0 14 20 30 20 60v250c0 24-20 36-42 36s-42-12-42-36V116c0-30 20-46 20-60z" fill="rgba(255,255,255,.12)" stroke="#bae6fd" stroke-width="4"/>
+            <g clip-path="url(#cb)"><g class="lvl"><g class="wv"><path d="M-200 60q50-22 100 0t100 0t100 0t100 0V420H-200Z" fill="url(#gb)"/></g></g></g>
+            <path d="M64 130v200" stroke="rgba(255,255,255,.5)" stroke-width="6" stroke-linecap="round"/>
+            <rect x="74" y="8" width="52" height="22" rx="6" fill="#e03a3a"/>
+            <text x="100" y="250" fill="#fff" text-anchor="middle" font-size="26" font-weight="800">YouFresh</text>
+          </svg>
+          <div class="pct" id="fillPct">0%</div>
+        </div>
+        <div class="bubs">
+          <div class="bub rv rv-r"><i class="fa-solid fa-hand-sparkles"></i><div><h3 data-i18n="fill.c1t">Clean</h3><p data-i18n="fill.c1p">Made to be safe and pleasant to drink.</p></div></div>
+          <div class="bub rv rv-r"><i class="fa-solid fa-snowflake"></i><div><h3 data-i18n="fill.c2t">Fresh</h3><p data-i18n="fill.c2p">Sachet for every day, bottle for the road.</p></div></div>
+          <div class="bub rv rv-r"><i class="fa-solid fa-location-dot"></i><div><h3 data-i18n="fill.c3t">Always near</h3><p data-i18n="fill.c3p">Find YouFresh in our branches.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="sec s-drinks" id="drinks" hidden>
     <div class="wrap">
       <h2 class="rv" data-i18n="drinks.title">Drinks for every taste</h2>
-      <p class="sub rv" data-i18n="drinks.sub">Tap a product to choose it. Tap the number to set how many cartons.</p>
+      <p class="sub rv" id="drinksSub" data-i18n="drinks.sub">Tap a product to choose it. Tap the number to set how many cartons.</p>
     </div>
     <div class="mq" id="mq"><div class="mq-track" id="mqTrack"></div></div>
+  </section>
+
+  <section class="sec s-range" id="range">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="range.title">Our range at a glance</h2>
+      <p class="sub rv" data-i18n="range.sub">Tap a tab to see each kind.</p>
+      <div class="rtabs" id="rTabs" role="tablist"></div>
+      <div class="stage" id="rStage">
+        <div class="ill" id="rIll"></div>
+        <div><h3 id="rTitle"></h3><p id="rText"></p><button class="bt" type="button" id="rCta"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="r.cta">Ask about this</span></button></div>
+      </div>
+    </div>
   </section>
 
   <section class="sec s-picks" id="picks" hidden>
@@ -87,6 +172,19 @@
     <div class="wrap"><div class="ps" id="ps"></div></div>
   </section>
 
+  <section class="sec s-steps" id="steps">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="steps.title">How to order</h2>
+      <p class="sub rv" data-i18n="steps.sub">Four easy steps.</p>
+      <div class="tl" id="tl">
+        <div class="st"><span class="no">1</span><h3 data-i18n="s1t">Choose</h3><p data-i18n="s1p">Tap the products you want and set how many cartons.</p></div>
+        <div class="st"><span class="no">2</span><h3 data-i18n="s2t">Pay</h3><p data-i18n="s2p">Press Pay now, send the money to our account and upload the proof.</p></div>
+        <div class="st"><span class="no">3</span><h3 data-i18n="s3t">Get your code</h3><p data-i18n="s3p">Save the code or download the PDF.</p></div>
+        <div class="st"><span class="no">4</span><h3 data-i18n="s4t">Receive</h3><p data-i18n="s4p">We confirm and send your goods.</p></div>
+      </div>
+    </div>
+  </section>
+
   <section class="sec s-deals" id="deals" hidden>
     <div class="wrap">
       <h2 class="rv" data-i18n="deals.title">More to love</h2>
@@ -95,7 +193,20 @@
     </div>
   </section>
 
+  <section class="sec s-stats" id="stats">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="stat.title">Hamstore in numbers</h2>
+      <p class="sub rv" data-i18n="stat.sub">Real numbers from our shop.</p>
+      <div class="rings">
+        <div class="ring" id="rgB"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="0" id="stB">0</b></div><span data-i18n="stat.b">Branches</span></div>
+        <div class="ring" id="rgP"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="0" id="stP">0</b></div><span data-i18n="stat.p">Products</span></div>
+        <div class="ring" id="rgW"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="2" id="stW">0</b></div><span data-i18n="stat.w">YouFresh types</span></div>
+      </div>
+    </div>
+  </section>
+
   <section class="sec s-spot" id="spot" hidden>
+    <canvas class="net" id="netSpot" aria-hidden="true"></canvas>
     <div class="wrap">
       <h2 class="rv" data-i18n="spot.title">Branch spotlight</h2>
       <p class="sub rv" data-i18n="spot.sub">Our products are available in every branch.</p>
@@ -103,6 +214,19 @@
         <div class="sf" id="spImgBox" role="button" tabindex="0"><img id="spImg" alt=""></div>
         <div class="si"><h3 id="spName"></h3><p id="spAd"></p><div class="chp" id="spChips"></div>
           <button class="bt" type="button" id="spOpen"><i class="fa-solid fa-map-location-dot"></i><span data-i18n="br.map">Map</span></button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec s-why" id="why">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="why.title">Why choose Hamstore</h2>
+      <p class="sub rv" data-i18n="why.sub">Simple things that make buying easy.</p>
+      <div class="wy">
+        <div class="pil rv" data-n="1"><i class="fa-solid fa-store"></i><h3 data-i18n="w1t">Every branch</h3><p data-i18n="w1p">Our drinks are available in every branch.</p></div>
+        <div class="pil rv" data-n="2"><i class="fa-solid fa-earth-africa"></i><h3 data-i18n="w2t">Local and imported</h3><p data-i18n="w2p">All kinds of drinks under one roof.</p></div>
+        <div class="pil rv" data-n="3"><i class="fa-solid fa-microphone-lines"></i><h3 data-i18n="w3t">We listen</h3><p data-i18n="w3p">Send a voice note or a message and we reply.</p></div>
+        <div class="pil rv" data-n="4"><i class="fa-solid fa-credit-card"></i><h3 data-i18n="w4t">Easy payment</h3><p data-i18n="w4p">Pay to our account and get a code and a PDF.</p></div>
       </div>
     </div>
   </section>
@@ -116,7 +240,34 @@
     </div>
   </section>
 
+  <section class="sec s-faq" id="faq">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="faq.title">Questions people ask</h2>
+      <p class="sub rv" data-i18n="faq.sub">Quick answers.</p>
+      <div class="faq">
+        <details><summary><span data-i18n="q1">How do I order?</span></summary><p data-i18n="a1">Choose products on this page and press Pay now. Then follow the steps.</p></details>
+        <details><summary><span data-i18n="q2">I cannot find your products near me.</span></summary><p data-i18n="a2">Press Send a report. Speak or write and tell us where you are.</p></details>
+        <details><summary><span data-i18n="q3">Do you sell imported drinks?</span></summary><p data-i18n="a3">Yes. We sell local and imported drinks. Ask us if you want a particular one.</p></details>
+        <details><summary><span data-i18n="q4">How do I pay?</span></summary><p data-i18n="a4">Send the total to the account on the payment page and upload your screenshot.</p></details>
+        <details><summary><span data-i18n="q5">What if a branch is closed?</span></summary><p data-i18n="a5">The branch card shows if it is open now. You can still send a report.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec s-partner" id="partner">
+    <div class="wrap">
+      <div class="pbox rv rv-z">
+        <div><h2 data-i18n="par.title">Work with us</h2><p data-i18n="par.text">Want to open a shop, become a distributor or sell YouFresh? Call us and we will explain.</p></div>
+        <div class="pcalls" id="parPhones">
+          <a class="bt red" href="tel:08060767279"><i class="fa-solid fa-phone"></i><span data-i18n="par.call">Call now</span> · 08060767279</a>
+          <a class="bt" href="mailto:hamstores755@gmail.com"><i class="fa-solid fa-envelope"></i><span data-i18n="par.mail">Send an email</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="sec s-band" id="band">
+    <canvas class="net" id="netBand" aria-hidden="true"></canvas>
     <div class="wrap">
       <h2 data-i18n="band.title">Can't find our drinks near you?</h2>
       <p data-i18n="band.text">Send a voice note or a message. Tell us where you are and we will help.</p>
@@ -134,6 +285,9 @@
   </div>
 </footer>
 
+<a class="fab call" href="tel:08060767279" aria-label="Call"><i class="fa-solid fa-phone"></i></a>
+<button class="fab top" id="toTop" type="button" aria-label="Back to top"><i class="fa-solid fa-arrow-up"></i></button>
+
 <div class="dock" id="dock" aria-live="polite">
   <div class="dmini" id="dMini"></div>
   <div class="dbar">
@@ -141,6 +295,15 @@
     <div class="tx"><small id="dCount"></small><b id="dTotal"></b></div>
     <button class="dclr" id="dClr" type="button" data-i18n="cart.clear">Clear</button>
     <a class="pay" id="dPay" href="buy.html"><i class="fa-solid fa-credit-card"></i><span data-i18n="cart.pay">Pay now</span></a>
+  </div>
+</div>
+
+<div class="nbm" id="nb" hidden role="dialog" aria-modal="true" aria-labelledby="nbT">
+  <div class="nbc">
+    <button class="nbx" id="nbX" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <h3 id="nbT" data-i18n="nb.title">Your nearest branch</h3>
+    <p class="s" data-i18n="nb.sub">Online buying is closed. Please go to this branch.</p>
+    <div id="nbBody"></div>
   </div>
 </div>
 
@@ -195,6 +358,6 @@
   </div>
 </div>
 
-<script type="module" src="index.js"></script>
+<script type="module" src="index.js" onerror="window.__bootFail&&window.__bootFail()"></script>
 </body>
 </html>
