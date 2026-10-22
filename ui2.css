@@ -131,3 +131,11 @@ textarea.msgbox:focus{border-color:var(--green);box-shadow:0 0 0 4px rgba(47,179
 .player .tm{min-width:92px;text-align:right;font-size:13px;color:var(--muted)}
 @media (max-width:640px){.stats{gap:6px}.stat b{font-size:18px}}
 .sheet.wide{width:min(900px,100%)}
+
+.shopcard{padding:30px 24px;display:grid;gap:14px;justify-items:center;text-align:center}
+.bigsw{position:relative;width:120px;height:62px;border-radius:99px;background:#7a1f1f;border:3px solid rgba(255,255,255,.35);transition:background .35s}
+.bigsw i{position:absolute;top:4px;left:4px;width:46px;height:46px;border-radius:50%;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:transform .35s cubic-bezier(.3,1.4,.4,1)}
+.shopcard.on .bigsw{background:#1b7d49}
+.shopcard.on .bigsw i{transform:translateX(58px)}
+.shopcard h3{margin:0;font-size:26px}
+.shopcard .keybox{margin:0;font-size:18px}
