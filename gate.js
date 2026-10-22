@@ -1,5 +1,5 @@
 import { app } from "./firebase.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 import { toast } from "./allui.js";
 import { bindCode } from "./ui2.js";
 import { showLoading, hideLoading } from "./loading.js";
@@ -43,5 +43,16 @@ $("loginForm").addEventListener("submit", async e => {
     toast("error", "Login failed", errors[err.code] || "Something went wrong. Try again.");
   } finally {
     hideLoading();
+  }
+});
+
+$("forgot").addEventListener("click", async () => {
+  const email = $("email").value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return toast("error", "Enter your email", "Type your email above, then press Forgot password.");
+  try {
+    await sendPasswordResetEmail(auth, email);
+    toast("success", "Check your email", "We sent a link to reset your password.", 7000);
+  } catch (err) {
+    toast("error", "Could not send", errors[err.code] || "Try again later.");
   }
 });
