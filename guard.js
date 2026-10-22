@@ -1,23 +1,67 @@
 import { app } from "./firebase.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut, sendEmailVerification } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
-import { adminHeader, toast, esc } from "./allui.js";
+import { adminHeader, toast } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-function denied(user) {
+const TEXT = {
+  unverified: ["Verify your email first", "We need to confirm that this email address is yours. Press the first button, open the link we send to your inbox, then press the second button."],
+  notallowed: ["This account is not allowed", "Only approved Hamstore staff can manage this site."],
+  error: ["Could not check your access", "Check your internet and try again."]
+};
+
+async function check(user) {
+  try { await user.reload(); } catch (e) {}
+  try {
+    const token = await user.getIdToken(true);
+    const res = await fetch("/api/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken: token })
+    });
+    const json = await res.json();
+    if (json.ok) return { ok: true };
+    if (json.code === "unverified" || json.code === "notallowed") return { ok: false, code: json.code };
+    console.warn("session check failed:", json.code);
+  } catch (e) {
+    console.warn("session check unreachable");
+  }
+  try {
+    const snap = await get(ref(db, "admins/" + user.uid));
+    return snap.val() === true ? { ok: true } : { ok: false, code: "error" };
+  } catch (e) {
+    return { ok: false, code: "error" };
+  }
+}
+
+function denied(user, code) {
+  const [title, text] = TEXT[code] || TEXT.error;
   document.body.classList.remove("locked");
-  document.querySelector("main").innerHTML = `<section class="panel box center" style="margin:40px auto">
-    <h2>Access not approved yet</h2>
-    <p class="sub">You are logged in, but this account cannot manage Hamstore. Send this ID to the owner to get approved.</p>
-    <div class="keybox">${esc(user.uid)}</div>
-    <button class="btn" id="copyId" type="button"><i class="fa-regular fa-copy"></i>Copy ID</button></section>`;
-  document.getElementById("copyId").onclick = async () => {
-    try { await navigator.clipboard.writeText(user.uid); toast("success", "Copied", "The ID is on your clipboard."); }
-    catch (e) { toast("error", "Copy failed", "Select the ID and copy it by hand."); }
-  };
+  const main = document.querySelector("main");
+  main.innerHTML = `<section class="panel box center" style="margin:40px auto">
+    <h2></h2><p class="sub"></p>
+    <div style="display:grid;gap:10px">
+      ${code === "unverified" ? '<button class="btn" id="gSend" type="button"><i class="fa-solid fa-envelope-circle-check"></i>Send verification email</button><button class="ghost" id="gDone" type="button">I have verified my email</button>' : ""}
+      ${code === "error" ? '<button class="btn" id="gRetry" type="button"><i class="fa-solid fa-rotate"></i>Try again</button>' : ""}
+      <button class="ghost" id="gOut" type="button">Log out</button>
+    </div></section>`;
+  main.querySelector("h2").textContent = title;
+  main.querySelector("p").textContent = text;
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on("gSend", async () => {
+    try { await sendEmailVerification(user); toast("success", "Email sent", "Open the link in your inbox, then come back."); }
+    catch (e) { toast("error", "Could not send", e.code === "auth/too-many-requests" ? "Too many tries. Wait a few minutes." : "Try again later."); }
+  });
+  on("gDone", () => location.reload());
+  on("gRetry", () => location.reload());
+  on("gOut", async () => {
+    await signOut(auth);
+    sessionStorage.removeItem("hs_gate");
+    location.replace("admin.html");
+  });
 }
 
 export function requireAdmin(active) {
@@ -39,18 +83,13 @@ export function requireAdmin(active) {
       if (settled) return;
       if (!user) return location.replace("gate.html");
       settled = true;
-      try {
-        const snap = await get(ref(db, "admins/" + user.uid));
-        hideLoading();
-        if (snap.val() === true) {
-          document.body.classList.remove("locked");
-          resolve(user);
-        } else {
-          denied(user);
-        }
-      } catch (e) {
-        hideLoading();
-        denied(user);
+      const result = await check(user);
+      hideLoading();
+      if (result.ok) {
+        document.body.classList.remove("locked");
+        resolve(user);
+      } else {
+        denied(user, result.code);
       }
     });
   });
