@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#06130d">
 <title data-i18n="t.buy">Your order - Hamstore</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
 <link rel="stylesheet" href="index.css">
 </head>
 <body data-device="phone">
@@ -23,6 +25,12 @@
   <div class="wrap">
     <h1 data-i18n="buy.title">Your order</h1>
     <p class="s" data-i18n="buy.sub">Check your goods, pay, then send us the proof.</p>
+
+    <section class="pn dn" id="closedBox" hidden>
+      <i class="fa-solid fa-store-slash" style="font-size:40px;color:#ffb44d"></i>
+      <p data-i18n="buy.closed">Online buying is closed right now. Please visit your nearest branch or call us.</p>
+      <a class="bt" href="index.html"><i class="fa-solid fa-store"></i><span data-i18n="buy.shop">Go to the shop</span></a>
+    </section>
 
     <section class="pn" id="itemsBox" hidden>
       <div class="ol" id="ol"></div>
