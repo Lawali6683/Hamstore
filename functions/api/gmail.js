@@ -1,5 +1,5 @@
 const DB_URL = "https://hamstore-751c1-default-rtdb.firebaseio.com";
-const API_KEY = "AIzaSyBD72eK0MSFWhfSjh1rs2TZaDrAApX1Auk";
+const SCOPE = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
 
 const reply = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -14,16 +14,28 @@ const b64url = input => {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 
+const fromB64u = text => {
+  let s = text.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+};
+
+const serviceAccount = env => {
+  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
+  sa.private_key = String(sa.private_key || "").replace(/\\n/g, "\n");
+  return sa;
+};
+
 let cached = { token: null, exp: 0 };
 
 async function getAccessToken(env) {
   if (cached.token && Date.now() < cached.exp - 60000) return cached.token;
-  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
+  const sa = serviceAccount(env);
   const now = Math.floor(Date.now() / 1000);
   const head = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const body = b64url(JSON.stringify({
     iss: sa.client_email,
-    scope: "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email",
+    scope: SCOPE,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600
@@ -41,9 +53,44 @@ async function getAccessToken(env) {
     })
   });
   const json = await res.json();
-  if (!json.access_token) throw new Error("token");
+  if (!json.access_token) throw new Error("token " + (json.error || ""));
   cached = { token: json.access_token, exp: Date.now() + (json.expires_in || 3600) * 1000 };
   return cached.token;
+}
+
+async function rt(env, method, path, body) {
+  const token = await getAccessToken(env);
+  const res = await fetch(`${DB_URL}/${path}.json`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error("db " + res.status);
+  return res.json();
+}
+
+let jwks = { keys: null, exp: 0 };
+
+async function verifyIdToken(env, idToken) {
+  const pid = serviceAccount(env).project_id;
+  const parts = String(idToken || "").split(".");
+  if (parts.length !== 3) throw new Error("jwt");
+  const dec = s => JSON.parse(new TextDecoder().decode(fromB64u(s)));
+  const header = dec(parts[0]);
+  const payload = dec(parts[1]);
+  if (header.alg !== "RS256") throw new Error("alg");
+  if (!jwks.keys || Date.now() > jwks.exp) {
+    const r = await fetch("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com");
+    const j = await r.json();
+    jwks = { keys: j.keys || [], exp: Date.now() + 3600000 };
+  }
+  const jwk = jwks.keys.find(k => k.kid === header.kid);
+  if (!jwk) throw new Error("kid");
+  const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, fromB64u(parts[2]), new TextEncoder().encode(parts[0] + "." + parts[1]));
+  const now = Math.floor(Date.now() / 1000);
+  if (!ok || payload.aud !== pid || payload.iss !== "https://securetoken.google.com/" + pid || !payload.sub || payload.exp < now || payload.iat > now + 300) throw new Error("claims");
+  return payload;
 }
 
 let gmail = { token: null, exp: 0 };
@@ -122,15 +169,13 @@ export async function onRequestPost({ request, env }) {
   if (!v.link.startsWith(origin + "/confirm.html?") || v.link.length > 400) return reply({ ok: false, message: "Invalid link." }, 400);
 
   try {
-    const lookup = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken: String(input.idToken || "") })
-    }).then(r => r.json());
-    const uid = lookup.users && lookup.users[0] && lookup.users[0].localId;
-    if (!uid) return reply({ ok: false, message: "Please log in again." }, 401);
-    const dbToken = await getAccessToken(env);
-    const approved = await fetch(`${DB_URL}/admins/${uid}.json`, { headers: { Authorization: `Bearer ${dbToken}` } }).then(r => r.json());
+    let who;
+    try {
+      who = await verifyIdToken(env, input.idToken);
+    } catch (e) {
+      return reply({ ok: false, message: "Please log in again." }, 401);
+    }
+    const approved = await rt(env, "GET", "admins/" + who.sub);
     if (approved !== true) return reply({ ok: false, message: "Not allowed." }, 403);
 
     const boundary = "hs" + crypto.randomUUID().replace(/-/g, "");
