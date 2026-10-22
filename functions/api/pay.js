@@ -94,6 +94,8 @@ export async function onRequestPost({ request, env }) {
     if (!(await rateLimit(env, request, "pay", 20))) return reply({ ok: false, code: "wait" }, 429);
     const token = await getAccessToken(env);
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    const shop = await fetch(`${DB_URL}/settings/shop/open.json`, { headers }).then(r => r.json());
+    if (shop === "no") return reply({ ok: false, code: "closed" }, 403);
 
     const items = [];
     let total = 0;
