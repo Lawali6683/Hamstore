@@ -32,9 +32,14 @@ function bindSeg(id, key) {
 const setUnit = bindSeg("segUnit", "unit");
 const setCat = bindSeg("segCat", "category");
 
-async function nextId() {
-  const res = await runTransaction(ref(db, "counters/post"), n => (n || 0) + 1);
-  return "POST" + String(res.snapshot.val()).padStart(4, "0");
+async function createUnique(counter, prefix, path, data) {
+  for (let i = 0; i < 25; i++) {
+    const res = await runTransaction(ref(db, "counters/" + counter), n => (n || 0) + 1);
+    const id = prefix + String(res.snapshot.val()).padStart(4, "0");
+    const made = await runTransaction(ref(db, path + "/" + id), current => (current === null ? data : undefined));
+    if (made.committed) return id;
+  }
+  throw new Error("id");
 }
 
 async function fetchPage() {
@@ -172,9 +177,8 @@ $("form").addEventListener("submit", async e => {
       posts.set(editingId, { ...posts.get(editingId), ...data });
       toast("success", "Saved", editingId + " was updated.");
     } else {
-      const id = await nextId();
       const full = { ...data, createdAt: Date.now() };
-      await set(ref(db, "posts/" + id), full);
+      const id = await createUnique("post", "POST", "posts", full);
       posts.set(id, { id, ...full });
       toast("success", "Published", id + " is now live.");
     }
