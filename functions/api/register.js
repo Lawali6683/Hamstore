@@ -1,4 +1,5 @@
 const DB_URL = "https://hamstore-751c1-default-rtdb.firebaseio.com";
+const SCOPE = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/identitytoolkit";
 
 const reply = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -13,32 +14,36 @@ const b64url = input => {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 
+const fromB64u = text => {
+  let s = text.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+};
+
+const serviceAccount = env => {
+  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
+  sa.private_key = String(sa.private_key || "").replace(/\\n/g, "\n");
+  return sa;
+};
+
 let cached = { token: null, exp: 0 };
 
 async function getAccessToken(env) {
   if (cached.token && Date.now() < cached.exp - 60000) return cached.token;
-
-  if (!env.FIREBASE_SERVICE_KEY) {
-    throw new Error("Missing FIREBASE_SERVICE_KEY environment variable");
-  }
-
-  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
+  const sa = serviceAccount(env);
   const now = Math.floor(Date.now() / 1000);
-
   const head = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const body = b64url(JSON.stringify({
     iss: sa.client_email,
-    scope: "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email",
+    scope: SCOPE,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600
   }));
-
   const pem = sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
   const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
   const key = await crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(head + "." + body));
-
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -47,164 +52,72 @@ async function getAccessToken(env) {
       assertion: head + "." + body + "." + b64url(sig)
     })
   });
-
   const json = await res.json();
-  if (!res.ok || !json.access_token) {
-    throw new Error(`Auth Error: ${json.error_description || json.error || "Failed to fetch access token"}`);
-  }
-
+  if (!json.access_token) throw new Error("token " + (json.error || ""));
   cached = { token: json.access_token, exp: Date.now() + (json.expires_in || 3600) * 1000 };
   return cached.token;
 }
 
-async function rateLimit(env, request, bucket, seconds) {
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(bucket + ip));
-  const id = [...new Uint8Array(buf)].slice(0, 12).map(b => b.toString(16).padStart(2, "0")).join("");
+async function rt(env, method, path, body) {
   const token = await getAccessToken(env);
-  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  const url = `${DB_URL}/rate/${bucket}-${id}.json`;
-
-  const prevRes = await fetch(url, { headers });
-  const prev = await prevRes.json();
-
-  const now = Date.now();
-  if (typeof prev === "number" && now - prev < seconds * 1000) return false;
-
-  await fetch(url, { method: "PUT", headers, body: String(now) });
-  return true;
+  const res = await fetch(`${DB_URL}/${path}.json`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error("db " + res.status);
+  return res.json();
 }
 
-const KINDS = ["order", "stock", "message"];
-const PHONE = /^[0-9+\s-]{7,20}$/;
+const AUTH_API = "https://identitytoolkit.googleapis.com/v1/projects/";
 
 export async function onRequestPost({ request, env }) {
   let input;
-
   try {
     input = await request.json();
   } catch (e) {
-    return reply({ ok: false, error: "Invalid JSON format in request body" }, 400);
+    return reply({ ok: false, code: "bad", message: "Invalid request." }, 400);
   }
 
-  if (!env.FIREBASE_SERVICE_KEY) {
-    return reply({ ok: false, error: "Missing FIREBASE_SERVICE_KEY environment variable" }, 500);
-  }
+  const name = String(input.name || "").trim().replace(/\s+/g, " ");
+  const email = String(input.email || "").trim().toLowerCase();
+  const password = String(input.password || "");
 
-  const username = String(input.username || input.user || input.name || "").trim().slice(0, 80);
-  const english = String(input.english || input.email || "").trim().slice(0, 100);
-  const password = String(input.password || "").trim();
-  const phone = String(input.phone || "").trim();
-  const kind = KINDS.includes(input.kind) ? input.kind : "message";
-  const message = String(input.message || "").trim().slice(0, 600);
-  const address = String(input.address || "").trim().slice(0, 200);
-  const branchId = /^BRANCH\d{4,}$/.test(String(input.branchId || "")) ? input.branchId : "";
-  const audio = typeof input.audio === "string" ? input.audio : "";
-  const lat = Number(input.lat);
-  const lng = Number(input.lng);
-  const hasPos = input.lat !== undefined && input.lat !== null && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  if (name.length < 2 || name.length > 60) return reply({ ok: false, code: "name", message: "Enter your full name." }, 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return reply({ ok: false, code: "email", message: "Enter a valid email." }, 400);
+  if (password.length < 8 || password.length > 128) return reply({ ok: false, code: "password", message: "Password must be at least 8 characters." }, 400);
+  if (!env.FIREBASE_SERVICE_KEY) return reply({ ok: false, code: "server", message: "Server is not set up yet. Add FIREBASE_SERVICE_KEY in Cloudflare." }, 500);
 
-  if (phone && !PHONE.test(phone)) {
-    return reply({ ok: false, error: "Invalid phone number format" }, 400);
-  }
-
-  if (!username) {
-    return reply({ ok: false, error: "User/Username field is required" }, 400);
-  }
-
-  if (!password) {
-    return reply({ ok: false, error: "Password field is required" }, 400);
-  }
-
-  if (audio && (!/^data:audio\/[a-z0-9.+-]+(;codecs=[a-z0-9.,]+)?;base64,/i.test(audio) || audio.length > 450000)) {
-    return reply({ ok: false, error: "Invalid or too large audio data" }, 400);
+  let uid = "";
+  try {
+    const token = await getAccessToken(env);
+    const res = await fetch(`${AUTH_API}${serviceAccount(env).project_id}/accounts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, displayName: name, emailVerified: false })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const detail = String((json.error && json.error.message) || res.status);
+      if (detail.startsWith("EMAIL_EXISTS")) return reply({ ok: false, code: "exists", message: "This email is already registered. Log in instead.", detail }, 409);
+      if (detail.startsWith("WEAK_PASSWORD")) return reply({ ok: false, code: "password", message: "Password is too weak.", detail }, 400);
+      if (detail.startsWith("INVALID_EMAIL")) return reply({ ok: false, code: "email", message: "Enter a valid email.", detail }, 400);
+      return reply({ ok: false, code: "auth", message: "Could not create the account. Check that Email/Password is enabled in Firebase Authentication.", detail }, 502);
+    }
+    uid = json.localId;
+  } catch (e) {
+    return reply({ ok: false, code: "server", message: "The server could not reach Firebase. Check FIREBASE_SERVICE_KEY.", detail: String(e.message || e) }, 500);
   }
 
   try {
-    if (!(await rateLimit(env, request, "msg", 20))) {
-      return reply({ ok: false, error: "Rate limit exceeded. Please wait before retrying." }, 429);
-    }
-
-    const token = await getAccessToken(env);
-    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-
-    const userIdRaw = username.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-    const userId = userIdRaw || `user_${Date.now()}`;
-
-    const userData = {
-      username: username,
-      password: password,
-      english: english,
-      phone: phone,
-      updatedAt: Date.now()
-    };
-
-    const userRes = await fetch(`${DB_URL}/users/${userId}.json`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify(userData)
-    });
-
-    const userJson = await userRes.json();
-    if (!userRes.ok) {
-      return reply({ ok: false, error: userJson.error || "Failed to update user in Firebase" }, userRes.status);
-    }
-
-    const rec = {
-      userId: userId,
-      name: username,
-      phone: phone,
-      kind: kind,
-      status: "new",
-      createdAt: Date.now()
-    };
-
-    if (message) rec.message = message;
-    if (address) rec.address = address;
-    if (hasPos) { rec.lat = lat; rec.lng = lng; }
-    if (audio) rec.voice = true;
-
-    if (branchId) {
-      const bnRes = await fetch(`${DB_URL}/branches/${branchId}/name.json`, { headers });
-      const bn = await bnRes.json();
-      if (bnRes.ok && bn) {
-        rec.branchId = branchId;
-        rec.branchName = String(bn).slice(0, 80);
-      }
-    }
-
-    const reqRes = await fetch(`${DB_URL}/users/${userId}/requests.json`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(rec)
-    });
-
-    const created = await reqRes.json();
-
-    if (!reqRes.ok || !created || !created.name) {
-      return reply({ ok: false, error: created.error || "Failed to save request record in Firebase" }, reqRes.status || 500);
-    }
-
-    if (audio) {
-      await fetch(`${DB_URL}/voices/${created.name}.json`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ userId: userId, data: audio, createdAt: rec.createdAt })
-      });
-    }
-
-    return reply({
-      ok: true,
-      message: "User and data saved successfully",
-      userId: userId,
-      ref: created.name.slice(-6).toUpperCase()
-    }, 201);
-
+    await rt(env, "PUT", "users/" + uid, { name, email, createdAt: Date.now() });
   } catch (e) {
-    return reply({ ok: false, error: e.message || "Internal server error" }, 500);
+    return reply({ ok: true, code: "noprofile", message: "Account created. You can log in now." }, 201);
   }
+
+  return reply({ ok: true, message: "Account created. You can log in now." }, 201);
 }
 
 export async function onRequest() {
-  return reply({ ok: false, error: "Method Not Allowed" }, 405);
+  return reply({ ok: false, message: "Method not allowed." }, 405);
 }
