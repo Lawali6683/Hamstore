@@ -1,4 +1,5 @@
 const DB_URL = "https://hamstore-751c1-default-rtdb.firebaseio.com";
+const SCOPE = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
 
 const reply = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -13,16 +14,28 @@ const b64url = input => {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 
+const fromB64u = text => {
+  let s = text.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+};
+
+const serviceAccount = env => {
+  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
+  sa.private_key = String(sa.private_key || "").replace(/\\n/g, "\n");
+  return sa;
+};
+
 let cached = { token: null, exp: 0 };
 
 async function getAccessToken(env) {
   if (cached.token && Date.now() < cached.exp - 60000) return cached.token;
-  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
+  const sa = serviceAccount(env);
   const now = Math.floor(Date.now() / 1000);
   const head = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const body = b64url(JSON.stringify({
     iss: sa.client_email,
-    scope: "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email",
+    scope: SCOPE,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600
@@ -40,22 +53,31 @@ async function getAccessToken(env) {
     })
   });
   const json = await res.json();
-  if (!json.access_token) throw new Error("token");
+  if (!json.access_token) throw new Error("token " + (json.error || ""));
   cached = { token: json.access_token, exp: Date.now() + (json.expires_in || 3600) * 1000 };
   return cached.token;
+}
+
+async function rt(env, method, path, body) {
+  const token = await getAccessToken(env);
+  const res = await fetch(`${DB_URL}/${path}.json`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error("db " + res.status);
+  return res.json();
 }
 
 async function rateLimit(env, request, bucket, seconds) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(bucket + ip));
   const id = [...new Uint8Array(buf)].slice(0, 12).map(b => b.toString(16).padStart(2, "0")).join("");
-  const token = await getAccessToken(env);
-  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  const url = `${DB_URL}/rate/${bucket}-${id}.json`;
-  const prev = await fetch(url, { headers }).then(r => r.json());
+  const path = `rate/${bucket}-${id}`;
+  const prev = await rt(env, "GET", path);
   const now = Date.now();
   if (typeof prev === "number" && now - prev < seconds * 1000) return false;
-  await fetch(url, { method: "PUT", headers, body: String(now) });
+  await rt(env, "PUT", path, now);
   return true;
 }
 
