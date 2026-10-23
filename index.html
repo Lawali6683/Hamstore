@@ -4,9 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#04100b">
-<meta name="description" content="Hamstore Integrated Services. All kinds of drinks, local and imported, bottled water and sachet water. Find a branch near you.">
-<title data-i18n="t.index">Hamstore Integrated Services - Drinks and Water</title>
-<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<title data-i18n="t.index">Hamstore Integrated Services - Drinks and U-Fresh Water by the Carton</title>
+<meta name="title" content="Hamstore Integrated Services - Drinks and U-Fresh Water by the Carton">
+<meta name="description" content="Stock up with Hamstore Integrated Services: local and imported drinks, U-Fresh sachet and bottled water, sold by the carton at fair prices. Find a branch near you and order today!">
+<meta name="keywords" content="Hamstore, Hamstore Integrated Services, U-Fresh water, sachet water, bottled water, drinks, carton, wholesale drinks, Nigeria">
+<meta name="author" content="Hamstore Integrated Services">
+
+<link rel="icon" type="image/png" sizes="32x32" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://i.imgur.com/UXH5q5w.png">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Hamstore Integrated Services - Drinks and U-Fresh Water by the Carton">
+<meta property="og:description" content="Cold drinks, U-Fresh sachet and bottled water, local and imported, all by the carton. Visit a Hamstore branch or order today!">
+<meta property="og:image" content="https://i.imgur.com/PuvwgfD.jpeg">
+<meta property="og:image:secure_url" content="https://i.imgur.com/PuvwgfD.jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Hamstore Integrated Services">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Hamstore Integrated Services - Drinks and U-Fresh Water by the Carton">
+<meta name="twitter:description" content="Cold drinks, U-Fresh sachet and bottled water, local and imported, all by the carton. Visit a Hamstore branch or order today!">
+<meta name="twitter:image" content="https://i.imgur.com/PuvwgfD.jpeg">
+
 <link rel="preconnect" href="https://i.imgur.com" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
@@ -15,6 +36,46 @@
 <link rel="modulepreload" href="loading.js">
 <link rel="modulepreload" href="firebase.js">
 <link rel="stylesheet" href="index.css">
+<style>
+/* ===== Modern refinements (additive, safe) ===== */
+.en,.ha{display:inline}
+[data-lang=en] .ha{display:none!important}
+[data-lang=ha] .en{display:none!important}
+.btn-wa,.bt.wa{background:linear-gradient(135deg,#25d366,#128c4a)!important;box-shadow:0 10px 28px rgba(37,211,102,.4)!important}
+.hd.solid{box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.bt{letter-spacing:.2px}
+.bt:active{transform:scale(.97)}
+.bc,.pbox,.bub,.pil,.st,.ring{border-radius:24px}
+.pil,.bub,.st{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(6px);transition:transform .3s,box-shadow .3s}
+.pil:hover,.bub:hover,.st:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(0,0,0,.3)}
+.faq details{border-radius:16px;transition:background .25s,box-shadow .25s}
+.faq details[open]{box-shadow:0 12px 30px rgba(0,0,0,.18)}
+.sec h2{background:linear-gradient(100deg,currentColor,currentColor);-webkit-background-clip:text;background-clip:text}
+img{image-rendering:auto}
+
+/* carton-only notice */
+.cartonnote{display:inline-flex;align-items:center;gap:10px;margin:0 0 18px;padding:9px 16px;border-radius:14px;background:rgba(255,209,102,.16);border:1px solid rgba(255,209,102,.5);color:#ffe9b0;font-weight:700;font-size:14.5px}
+.cartonnote i{color:#ffd166}
+
+/* Fill section: product image instead of SVG bottle */
+.fbwrap{position:relative;display:grid;justify-items:center;gap:10px}
+.fbwrap .fb{position:absolute;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none}
+.fbimg{display:block;width:min(300px,70vw);height:auto;max-height:440px;object-fit:contain;filter:drop-shadow(0 22px 34px rgba(0,0,0,.5));animation:fbfloat 4.5s ease-in-out infinite}
+@keyframes fbfloat{50%{transform:translateY(-10px)}}
+
+/* Range section: product image replaces the icon */
+.ill.hasimg>*:not(img.fx){display:none!important}
+.ill img.fx{display:block;width:100%;max-width:340px;max-height:340px;margin:0 auto;object-fit:contain;border-radius:22px;filter:drop-shadow(0 18px 30px rgba(0,0,0,.4))}
+
+.rtab img.ti{width:28px;height:28px;border-radius:8px;object-fit:cover;margin-right:8px;vertical-align:middle}
+/* WhatsApp floating button */
+.wafab{position:fixed;left:14px;bottom:100px;z-index:65;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#25d366,#128c4a);color:#fff;font-size:30px;text-decoration:none;box-shadow:0 12px 30px rgba(37,211,102,.55)}
+.wafab::before{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #25d366;animation:waring 2s ease-out infinite}
+@keyframes waring{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+.wafab:hover{transform:scale(1.08)}
+.mnu a.wa i.fa-brands{width:34px;text-align:center;color:#6fe39a;font-size:1em}
+.ft a i.fa-brands{color:#6fe39a}
+</style>
 <noscript><style>#boot{display:none!important}</style></noscript>
 </head>
 <body data-device="phone">
@@ -57,7 +118,7 @@
   <div class="in">
     <a href="#top" data-go style="--i:0"><span class="n">01</span><i class="fa-solid fa-house"></i><span data-i18n="menu.home">Home</span></a>
     <a href="#branches" data-go id="mBranches" style="--i:1"><span class="n">02</span><i class="fa-solid fa-store"></i><span data-i18n="menu.branches">Our branches</span></a>
-    <a href="#water" data-go id="mWater" style="--i:2"><span class="n">03</span><i class="fa-solid fa-droplet"></i><span data-i18n="menu.water">YouFresh water</span></a>
+    <a href="#water" data-go id="mWater" style="--i:2"><span class="n">03</span><i class="fa-solid fa-droplet"></i><span data-i18n="menu.water">U-Fresh water</span></a>
     <a href="#drinks" data-go id="mDrinks" style="--i:3"><span class="n">04</span><i class="fa-solid fa-bottle-water"></i><span data-i18n="menu.drinks">Drinks</span></a>
     <a href="#range" data-go style="--i:4"><span class="n">05</span><i class="fa-solid fa-boxes-stacked"></i><span data-i18n="menu.range">Our range</span></a>
     <a href="#steps" data-go style="--i:5"><span class="n">06</span><i class="fa-solid fa-list-check"></i><span data-i18n="menu.steps">How to order</span></a>
@@ -67,6 +128,7 @@
     <a href="buy.html" id="mOrder" style="--i:9"><span class="n">10</span><i class="fa-solid fa-bag-shopping"></i><span data-i18n="menu.order">My order</span></a>
     <a href="about.html" style="--i:10"><span class="n">11</span><i class="fa-solid fa-circle-info"></i><span data-i18n="menu.about">About us</span></a>
     <a href="tel:08060767279" style="--i:11"><span class="n">12</span><i class="fa-solid fa-phone"></i><span data-i18n="menu.call">Call us</span></a>
+    <a class="wa" href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener" style="--i:12"><span class="n">13</span><i class="fa-brands fa-whatsapp"></i><span>WhatsApp</span></a>
   </div>
 </nav>
 
@@ -82,9 +144,11 @@
       <h1>Hamstore Integrated Services</h1>
       <div class="sl"><span><b data-i18n="hero.s1">We don't just sell drinks.</b></span><span><b data-i18n="hero.s2">We keep your shop stocked.</b></span></div>
       <p data-i18n="hero.sub">Local and imported drinks, bottled water and sachet water, in every one of our branches.</p>
-      <div class="you"><i class="fa-solid fa-droplet"></i><span data-i18n="hero.you">New and improved YouFresh water: sachet and bottle.</span></div>
+      <div class="you"><i class="fa-solid fa-droplet"></i><span data-i18n="hero.you">New and improved U-Fresh water: sachet and bottle.</span></div>
+      <div class="cartonnote"><i class="fa-solid fa-box"></i><span><span class="en">All drinks and water are sold by the carton only, not single pieces.</span><span class="ha">Ana sayar da dukkan lemuka da ruwa ne da kwali (katon) kawai, ba guda ɗaya ba.</span></span></div>
       <div class="btns">
         <a class="bt" href="#branches" data-go><i class="fa-solid fa-location-dot"></i><span data-i18n="hero.cta1">Find a branch</span></a>
+        <a class="bt wa" href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp</span></a>
         <button class="bt red" type="button" id="heroReport"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="hero.cta2">Send a report</span></button>
       </div>
       <p class="note" data-i18n="hero.note">Can't find our products near you, or need them fast? Send us a report and we will reach you.</p>
@@ -110,19 +174,20 @@
   <section class="sec s-water" id="water" hidden>
     <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="wrap">
-      <h2 class="rv" data-i18n="water.title">YouFresh Water</h2>
-      <p class="sub rv" data-i18n="water.sub">Clean, fresh and safe to drink. Sachet and bottle.</p>
+      <h2 class="rv" data-i18n="water.title">U-Fresh Water</h2>
+      <p class="sub rv" data-i18n="water.sub">Clean, fresh and safe to drink. Sachet and bottle, sold by the carton.</p>
       <div class="wgrid" id="wGrid"></div>
     </div>
   </section>
 
   <section class="sec s-fill" id="fill">
     <div class="wrap">
-      <h2 class="rv" data-i18n="fill.title">Pure and fresh, bottle by bottle</h2>
-      <p class="sub rv" data-i18n="fill.sub">Scroll down to fill the bottle. YouFresh comes in sachet and in bottle.</p>
+      <h2 class="rv" data-i18n="fill.title">Pure and fresh, carton by carton</h2>
+      <p class="sub rv" data-i18n="fill.sub">Scroll down to fill the bottle. U-Fresh comes in sachet and in bottle.</p>
       <div class="fillgrid">
         <div class="fbwrap rv rv-z">
-          <svg class="fb" viewBox="0 0 200 420" role="img" aria-label="Water bottle">
+          <img class="fbimg" src="https://i.imgur.com/8hjcsQX.png" alt="U-Fresh water bottle" loading="lazy" decoding="async">
+          <svg class="fb" viewBox="0 0 200 420" role="img" aria-hidden="true" focusable="false">
             <defs>
               <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#0369a1"/></linearGradient>
               <clipPath id="cb"><path d="M78 26h44v30c0 14 20 30 20 60v250c0 24-20 36-42 36s-42-12-42-36V116c0-30 20-46 20-60z"/></clipPath>
@@ -131,14 +196,14 @@
             <g clip-path="url(#cb)"><g class="lvl"><g class="wv"><path d="M-200 60q50-22 100 0t100 0t100 0t100 0V420H-200Z" fill="url(#gb)"/></g></g></g>
             <path d="M64 130v200" stroke="rgba(255,255,255,.5)" stroke-width="6" stroke-linecap="round"/>
             <rect x="74" y="8" width="52" height="22" rx="6" fill="#e03a3a"/>
-            <text x="100" y="250" fill="#fff" text-anchor="middle" font-size="26" font-weight="800">YouFresh</text>
+            <text x="100" y="250" fill="#fff" text-anchor="middle" font-size="26" font-weight="800">U-Fresh</text>
           </svg>
           <div class="pct" id="fillPct">0%</div>
         </div>
         <div class="bubs">
           <div class="bub rv rv-r"><i class="fa-solid fa-hand-sparkles"></i><div><h3 data-i18n="fill.c1t">Clean</h3><p data-i18n="fill.c1p">Made to be safe and pleasant to drink.</p></div></div>
           <div class="bub rv rv-r"><i class="fa-solid fa-snowflake"></i><div><h3 data-i18n="fill.c2t">Fresh</h3><p data-i18n="fill.c2p">Sachet for every day, bottle for the road.</p></div></div>
-          <div class="bub rv rv-r"><i class="fa-solid fa-location-dot"></i><div><h3 data-i18n="fill.c3t">Always near</h3><p data-i18n="fill.c3p">Find YouFresh in our branches.</p></div></div>
+          <div class="bub rv rv-r"><i class="fa-solid fa-location-dot"></i><div><h3 data-i18n="fill.c3t">Always near</h3><p data-i18n="fill.c3p">Find U-Fresh in our branches.</p></div></div>
         </div>
       </div>
     </div>
@@ -200,7 +265,7 @@
       <div class="rings">
         <div class="ring" id="rgB"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="0" id="stB">0</b></div><span data-i18n="stat.b">Branches</span></div>
         <div class="ring" id="rgP"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="0" id="stP">0</b></div><span data-i18n="stat.p">Products</span></div>
-        <div class="ring" id="rgW"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="2" id="stW">0</b></div><span data-i18n="stat.w">YouFresh types</span></div>
+        <div class="ring" id="rgW"><div class="rn"><svg viewBox="0 0 140 140"><circle class="bgc" cx="70" cy="70" r="62"/><circle class="fgc" cx="70" cy="70" r="62"/></svg><b data-count="2" id="stW">0</b></div><span data-i18n="stat.w">U-Fresh types</span></div>
       </div>
     </div>
   </section>
@@ -250,6 +315,7 @@
         <details><summary><span data-i18n="q3">Do you sell imported drinks?</span></summary><p data-i18n="a3">Yes. We sell local and imported drinks. Ask us if you want a particular one.</p></details>
         <details><summary><span data-i18n="q4">How do I pay?</span></summary><p data-i18n="a4">Send the total to the account on the payment page and upload your screenshot.</p></details>
         <details><summary><span data-i18n="q5">What if a branch is closed?</span></summary><p data-i18n="a5">The branch card shows if it is open now. You can still send a report.</p></details>
+        <details><summary><span class="en">Can I buy a single bottle or one piece?</span><span class="ha">Zan iya sayen guda ɗaya?</span></summary><p><span class="en">No. All drinks and water are sold by the carton only, because the company supplies them by the carton.</span><span class="ha">A'a. Ana sayar da lemuka da ruwa duka da kwali (katon) ne kawai, domin kamfani yana sayarwa da kwali.</span></p></details>
       </div>
     </div>
   </section>
@@ -257,9 +323,10 @@
   <section class="sec s-partner" id="partner">
     <div class="wrap">
       <div class="pbox rv rv-z">
-        <div><h2 data-i18n="par.title">Work with us</h2><p data-i18n="par.text">Want to open a shop, become a distributor or sell YouFresh? Call us and we will explain.</p></div>
+        <div><h2 data-i18n="par.title">Work with us</h2><p data-i18n="par.text">Want to open a shop, become a distributor or sell U-Fresh? Call us or message us on WhatsApp and we will explain.</p></div>
         <div class="pcalls" id="parPhones">
           <a class="bt red" href="tel:08060767279"><i class="fa-solid fa-phone"></i><span data-i18n="par.call">Call now</span> · 08060767279</a>
+          <a class="bt wa" href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20work%20with%20you." target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp</span></a>
           <a class="bt" href="mailto:hamstores755@gmail.com"><i class="fa-solid fa-envelope"></i><span data-i18n="par.mail">Send an email</span></a>
         </div>
       </div>
@@ -280,12 +347,13 @@
   <div class="wrap">
     <div><img src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore"><p data-i18n="ft.tag">Drinks and water for every home and shop.</p></div>
     <div><h4 data-i18n="ft.about">About us</h4><a href="about.html"><i class="fa-solid fa-circle-info"></i><span data-i18n="ft.about">About us</span></a><a href="buy.html"><i class="fa-solid fa-bag-shopping"></i><span data-i18n="menu.order">My order</span></a></div>
-    <div><h4 data-i18n="ft.contact">Contact</h4><a href="mailto:hamstores755@gmail.com"><i class="fa-solid fa-envelope"></i>hamstores755@gmail.com</a><a href="tel:08060767279"><i class="fa-solid fa-phone"></i>08060767279</a><div id="ftPhones"></div></div>
+    <div><h4 data-i18n="ft.contact">Contact</h4><a href="mailto:hamstores755@gmail.com"><i class="fa-solid fa-envelope"></i>hamstores755@gmail.com</a><a href="tel:08060767279"><i class="fa-solid fa-phone"></i>08060767279</a><a href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp: 08060767279</a><div id="ftPhones"></div></div>
     <div class="cp">&copy; <span id="yr"></span> Hamstore Integrated Services. <span data-i18n="ft.rights">All rights reserved.</span></div>
   </div>
 </footer>
 
 <a class="fab call" href="tel:08060767279" aria-label="Call"><i class="fa-solid fa-phone"></i></a>
+<a class="wafab" href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
 <button class="fab top" id="toTop" type="button" aria-label="Back to top"><i class="fa-solid fa-arrow-up"></i></button>
 
 <div class="dock" id="dock" aria-live="polite">
@@ -357,6 +425,7 @@
     </div>
   </div>
 </div>
+
 
 <script type="module" src="index.js" onerror="window.__bootFail&&window.__bootFail()"></script>
 </body>
