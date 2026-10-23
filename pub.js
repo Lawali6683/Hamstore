@@ -291,12 +291,24 @@ const D = {
 
 let lang = "en";
 
+/* Overrides: carton-only wording and new page title */
+Object.assign(D.en, {
+  "t.index": "Hamstore Integrated Services - Drinks and U-Fresh Water by the Carton",
+  "tk.6": "Sold by the carton",
+  "ab.l4": "Cartons only (no single pieces)"
+});
+Object.assign(D.ha, {
+  "t.index": "Hamstore Integrated Services - Abin Sha da Ruwan U-Fresh da Katon",
+  "tk.6": "Ana sayarwa da katon",
+  "ab.l4": "Katon kawai (ba guda ɗaya ba)"
+});
+
 export const getLang = () => lang;
 
 export function t(key, vars) {
   let s = (D[lang] && D[lang][key]) || D.en[key] || key;
   if (vars) Object.keys(vars).forEach(k => { s = s.split("{" + k + "}").join(vars[k]); });
-  return s;
+  return s.split("YouFresh").join("U-Fresh");
 }
 
 function apply(l) {
