@@ -1,21 +1,21 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, get, set, update, remove, query, orderByChild, limitToLast, endBefore, runTransaction } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
 import { toast, confirmBox, openModal, imageFieldHTML, imagePicker, esc, naira } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const db = getDatabase(app);
 await requireAdmin("post");
 
 const PAGE = 12;
 const $ = id => document.getElementById(id);
 const posts = new Map();
 const state = { unit: "Carton", category: "Drinks" };
-let lastKey = null;
-let lastTime = null;
+let fetched = 0;
 let done = false;
 let busy = false;
 let editingId = null;
+
+
+const norm = r => ({ ...r, price: Number(r.price) || 0, createdAt: Number(r.created_at) || 0 });
 
 $("imgField").innerHTML = imageFieldHTML();
 const img = imagePicker($("imgField"));
@@ -32,29 +32,9 @@ function bindSeg(id, key) {
 const setUnit = bindSeg("segUnit", "unit");
 const setCat = bindSeg("segCat", "category");
 
-async function createUnique(counter, prefix, path, data) {
-  for (let i = 0; i < 25; i++) {
-    const res = await runTransaction(ref(db, "counters/" + counter), n => (n || 0) + 1);
-    const id = prefix + String(res.snapshot.val()).padStart(4, "0");
-    const made = await runTransaction(ref(db, path + "/" + id), current => (current === null ? data : undefined));
-    if (made.committed) return id;
-  }
-  throw new Error("id");
-}
-
 async function fetchPage() {
-  const base = ref(db, "posts");
-  const q = lastKey === null
-    ? query(base, orderByChild("createdAt"), limitToLast(PAGE))
-    : query(base, orderByChild("createdAt"), endBefore(lastTime, lastKey), limitToLast(PAGE));
-  const snap = await get(q);
-  const rows = [];
-  snap.forEach(c => { rows.push({ id: c.key, ...c.val() }); });
-  rows.sort((a, b) => b.createdAt - a.createdAt);
-  if (rows.length) {
-    lastKey = rows[rows.length - 1].id;
-    lastTime = rows[rows.length - 1].createdAt;
-  }
+  const rows = (must(await supabase.from("posts").select("*").order("created_at", { ascending: false }).range(fetched, fetched + PAGE - 1)) || []).map(norm);
+  fetched += rows.length;
   if (rows.length < PAGE) done = true;
   return rows;
 }
@@ -138,7 +118,8 @@ async function removePost(id) {
   if (!(await confirmBox({ title: "Delete this post?", text: "It will be removed from the website. This cannot be undone.", okText: "Delete", danger: true }))) return;
   showLoading("Deleting...");
   try {
-    await remove(ref(db, "posts/" + id));
+    const rows = must(await supabase.from("posts").delete().eq("id", id).select("id"));
+    if (!rows || !rows.length) throw new Error("denied");
     posts.delete(id);
     if (editingId === id) resetForm();
     render();
@@ -164,7 +145,7 @@ $("form").addEventListener("submit", async e => {
   const name = $("fName").value.trim();
   const price = Number($("fPrice").value);
   if (name.length < 2) return toast("error", "Name needed", "Enter the product name.");
-  if ($("fPrice").value === "" || price < 0) return toast("error", "Price needed", "Enter a valid price.");
+  if ($("fPrice").value === "" || !Number.isFinite(price) || price < 0) return toast("error", "Price needed", "Enter a valid price.");
   if (!img.has()) return toast("error", "Image needed", "Upload a photo or paste a link.");
   if (editingId && !(await confirmBox({ title: "Save changes?", text: "The website will show the new details.", okText: "Save" }))) return;
 
@@ -173,14 +154,15 @@ $("form").addEventListener("submit", async e => {
     const image = await img.resolve();
     const data = { name, price, unit: state.unit, category: state.category, image };
     if (editingId) {
-      await update(ref(db, "posts/" + editingId), { ...data, updatedAt: Date.now() });
-      posts.set(editingId, { ...posts.get(editingId), ...data });
+      const rows = must(await supabase.from("posts").update({ ...data, updated_at: Date.now() }).eq("id", editingId).select("*"));
+      if (!rows || !rows.length) throw new Error("denied");
+      posts.set(editingId, norm(rows[0]));
       toast("success", "Saved", editingId + " was updated.");
     } else {
-      const full = { ...data, createdAt: Date.now() };
-      const id = await createUnique("post", "POST", "posts", full);
-      posts.set(id, { id, ...full });
-      toast("success", "Published", id + " is now live.");
+      
+      const row = must(await supabase.from("posts").insert({ ...data, created_at: Date.now() }).select("*").single());
+      posts.set(row.id, norm(row));
+      toast("success", "Published", row.id + " is now live.");
     }
     resetForm();
     render();
