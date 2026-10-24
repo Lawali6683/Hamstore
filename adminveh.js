@@ -1,13 +1,9 @@
-import { app } from "./firebase.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { getDatabase, ref, get, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
-import { requireAdmin } from "./guard.js";
+import { supabase, must } from "./supabase.js";
+import { requireAdmin, accessToken } from "./guard.js";
 import { toast, esc } from "./allui.js";
 import { photoSlot, makeCode, codeKey, randomKey, plateKey, confirmLink, messageText, smsHref, mailHref, emailDriver } from "./ui2.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const auth = getAuth(app);
-const db = getDatabase(app);
 await requireAdmin("veh");
 
 const $ = id => document.getElementById(id);
@@ -47,21 +43,11 @@ $("rmPhone").onclick = () => {
   $("addPhone").hidden = false;
 };
 
-async function createUnique(counter, prefix, path, data) {
-  for (let i = 0; i < 25; i++) {
-    const res = await runTransaction(ref(db, "counters/" + counter), n => (n || 0) + 1);
-    const id = prefix + String(res.snapshot.val()).padStart(4, "0");
-    const made = await runTransaction(ref(db, path + "/" + id), current => (current === null ? data : undefined));
-    if (made.committed) return id;
-  }
-  throw new Error("id");
-}
-
 async function freshCode() {
   for (let i = 0; i < 8; i++) {
     const code = makeCode();
-    const snap = await get(ref(db, "codes/" + codeKey(code)));
-    if (!snap.exists()) return code;
+    const rows = must(await supabase.from("vehicles").select("id").eq("code_key", codeKey(code)).limit(1));
+    if (!rows || !rows.length) return code;
   }
   throw new Error("code");
 }
@@ -101,8 +87,7 @@ function showSuccess(v) {
     if (act === "email") {
       showLoading("Sending email...");
       try {
-        const token = await auth.currentUser.getIdToken();
-        const res = await emailDriver(token, v);
+        const res = await emailDriver(await accessToken(), v);
         toast(res.ok ? "success" : "error", res.ok ? "Email sent" : "Email not sent", res.message);
       } catch (err) {
         toast("error", "Email not sent", "Check your internet and try again.");
@@ -133,7 +118,8 @@ $("form").addEventListener("submit", async e => {
   showLoading("Checking plate number...");
   try {
     const pk = plateKey(plate);
-    if ((await get(ref(db, "plates/" + pk))).exists()) {
+    const dup = must(await supabase.from("vehicles").select("id").eq("plate_key", pk).limit(1));
+    if (dup && dup.length) {
       hideLoading();
       return toast("error", "Already registered", "This plate number is already in the system.");
     }
@@ -142,22 +128,34 @@ $("form").addEventListener("submit", async e => {
     const [driverPhoto, platePhoto, vehiclePhoto, idPhoto] = await Promise.all([slots.driver.upload(), slots.plate.upload(), slots.vehicle.upload(), slots.id.upload()]);
     hideLoading();
     showLoading("Saving...");
-    const code = await freshCode();
-    const key = randomKey();
-    const rec = { name, driverName, phone, plate, email, code, key, createdAt: Date.now(), photos: { plate: platePhoto, vehicle: vehiclePhoto } };
-    if (phone2) rec.phone2 = phone2;
-    if (driverPhoto) rec.photos.driver = driverPhoto;
-    if (idPhoto) rec.photos.id = idPhoto;
-    const id = await createUnique("vehicle", "VEH", "vehicles", rec);
-    try {
-      await update(ref(db), { ["codes/" + codeKey(code)]: id, ["plates/" + pk]: id });
-    } catch (err) {
-      await remove(ref(db, "vehicles/" + id));
-      throw err;
+    const photos = { plate: platePhoto, vehicle: vehiclePhoto };
+    if (driverPhoto) photos.driver = driverPhoto;
+    if (idPhoto) photos.id = idPhoto;
+
+    let saved = null;
+    let code = "";
+    let key = "";
+    for (let i = 0; i < 5 && !saved; i++) {
+      code = await freshCode();
+      key = randomKey();
+      const { data, error } = await supabase.from("vehicles").insert({
+        code, code_key: codeKey(code), key, name, driver_name: driverName,
+        phone, phone2: phone2 || null, plate, plate_key: pk, email, photos
+      }).select("id").single();
+      if (!error) { saved = data; break; }
+      if (error.code === "23505" && String(error.message + error.details).includes("plate_key")) {
+        hideLoading();
+        return toast("error", "Already registered", "This plate number is already in the system.");
+      }
+      if (error.code !== "23505") throw error;
     }
+    if (!saved) throw new Error("code");
+
+    const rec = { name, driverName, phone, plate, email, code, key, createdAt: Date.now(), photos };
+    if (phone2) rec.phone2 = phone2;
     resetForm();
     toast("success", "Vehicle registered", code);
-    showSuccess({ ...rec, id, link: confirmLink(code, key) });
+    showSuccess({ ...rec, id: saved.id, link: confirmLink(code, key) });
   } catch (err) {
     toast("error", "Could not register", err.message === "upload" ? "Photo upload failed. Try again." : "You may not have permission, or the connection failed.");
   } finally {
