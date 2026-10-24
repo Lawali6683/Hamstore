@@ -97,3 +97,7 @@ export async function onRequest(context) {
 
   return reply({ ok: true, message: "Account created. You can log in now." }, 201, origin);
 }
+
+export async function onRequestGet() {
+  return reply({ ok: false, message: "Method not allowed." }, 405);
+}
