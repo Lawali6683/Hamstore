@@ -1,17 +1,22 @@
-import { app } from "./firebase.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
-import { requireAdmin } from "./guard.js";
+import { supabase, must } from "./supabase.js";
+import { requireAdmin, accessToken } from "./guard.js";
 import { toast, confirmBox, esc, ago } from "./allui.js";
-import { DEFAULT_MESSAGE, messageText, smsHref, mailHref, emailDriver, confirmLink, codeKey, plateKey } from "./ui2.js";
+import { DEFAULT_MESSAGE, messageText, smsHref, mailHref, emailDriver, confirmLink } from "./ui2.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const auth = getAuth(app);
-const db = getDatabase(app);
 await requireAdmin("send");
 
 const $ = id => document.getElementById(id);
 const vehicles = new Map();
+
+
+const norm = r => ({
+  ...r,
+  driverName: r.driver_name,
+  confirmedAt: r.confirmed_at ? Number(r.confirmed_at) : null,
+  createdAt: Number(r.created_at) || 0,
+  photos: r.photos || {}
+});
 
 function template() {
   try { return localStorage.getItem("hs_msg") || DEFAULT_MESSAGE; } catch (e) { return DEFAULT_MESSAGE; }
@@ -71,7 +76,9 @@ $("list").addEventListener("click", async e => {
   const btn = e.target.closest("[data-act]");
   if (!btn) return;
   const id = btn.closest(".vrow").dataset.id;
-  const v = withLink(vehicles.get(id));
+  const found = vehicles.get(id);
+  if (!found) return;
+  const v = withLink(found);
   if (btn.dataset.act === "copy") {
     try { await navigator.clipboard.writeText(messageText(v, $("tpl").value)); toast("success", "Copied", "The message is on your clipboard."); }
     catch (err) { toast("error", "Copy failed", "Select the text and copy it by hand."); }
@@ -79,7 +86,7 @@ $("list").addEventListener("click", async e => {
   if (btn.dataset.act === "email") {
     showLoading("Sending email...");
     try {
-      const res = await emailDriver(await auth.currentUser.getIdToken(), v);
+      const res = await emailDriver(await accessToken(), v);
       toast(res.ok ? "success" : "error", res.ok ? "Email sent" : "Email not sent", res.message);
     } catch (err) {
       toast("error", "Email not sent", "Check your internet and try again.");
@@ -91,10 +98,9 @@ $("list").addEventListener("click", async e => {
     if (!(await confirmBox({ title: "Delete this vehicle?", text: "Its ID, tracking and route history will be removed.", okText: "Delete", danger: true }))) return;
     showLoading("Deleting...");
     try {
-      const paths = { ["vehicles/" + id]: null, ["tracking/" + id]: null, ["trails/" + id]: null };
-      if (v.code) paths["codes/" + codeKey(v.code)] = null;
-      if (v.plate) paths["plates/" + plateKey(v.plate)] = null;
-      await update(ref(db), paths);
+      
+      const rows = must(await supabase.from("vehicles").delete().eq("id", id).select("id"));
+      if (!rows || !rows.length) throw new Error("denied");
       vehicles.delete(id);
       render();
       toast("success", "Deleted", id + " was removed.");
@@ -108,8 +114,8 @@ $("list").addEventListener("click", async e => {
 
 showLoading("Loading vehicles...");
 try {
-  const snap = await get(ref(db, "vehicles"));
-  snap.forEach(c => { vehicles.set(c.key, { id: c.key, ...c.val() }); });
+  const rows = must(await supabase.from("vehicles").select("*").order("created_at", { ascending: false })) || [];
+  rows.forEach(r => { vehicles.set(r.id, norm(r)); });
 } catch (e) {
   toast("error", "Could not load vehicles", "Check your internet and try again.");
 }
