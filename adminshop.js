@@ -1,18 +1,16 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
 import { toast, confirmBox } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const db = getDatabase(app);
 await requireAdmin("shop");
 
 const $ = id => document.getElementById(id);
 let current = "yes";
 let ready = false;
 
-function paint(data) {
-  current = data && data.open === "no" ? "no" : "yes";
+function paint(open, updatedAt) {
+  current = open === "no" ? "no" : "yes";
   const on = current === "yes";
   $("card").classList.toggle("on", on);
   $("state").textContent = on ? "Online buying is ON" : "Online buying is OFF";
@@ -21,13 +19,26 @@ function paint(data) {
   $("toggle").disabled = false;
   $("toggle").className = "btn full" + (on ? " red" : "");
   $("toggle").innerHTML = on ? '<i class="fa-solid fa-power-off"></i><span>Turn OFF online buying</span>' : '<i class="fa-solid fa-power-off"></i><span>Turn ON online buying</span>';
-  $("upd").textContent = data && data.updatedAt ? "Last changed: " + new Date(data.updatedAt).toLocaleString("en-NG") : "Not changed yet. The default is open: yes.";
+  $("upd").textContent = updatedAt ? "Last changed: " + new Date(Number(updatedAt)).toLocaleString("en-NG") : "Not changed yet. The default is open: yes.";
   ready = true;
 }
 
-onValue(ref(db, "settings/shop"), snap => paint(snap.val()), () => {
+async function read() {
+  const rows = must(await supabase.from("settings").select("key,value").in("key", ["shop_open", "shop_updated_at"])) || [];
+  const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  paint(map.shop_open, map.shop_updated_at);
+}
+
+try {
+  await read();
+} catch (e) {
   toast("error", "Could not read the setting", "Check your internet and try again.");
-});
+}
+
+supabase
+  .channel("shop-admin")
+  .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => { read().catch(() => {}); })
+  .subscribe();
 
 $("toggle").onclick = async () => {
   if (!ready) return;
@@ -41,7 +52,12 @@ $("toggle").onclick = async () => {
   if (!ok) return;
   showLoading("Saving...");
   try {
-    await set(ref(db, "settings/shop"), { open: next, updatedAt: Date.now() });
+    const rows = must(await supabase.from("settings").upsert([
+      { key: "shop_open", value: next },
+      { key: "shop_updated_at", value: String(Date.now()) }
+    ], { onConflict: "key" }).select("key"));
+    if (!rows || rows.length < 2) throw new Error("denied");
+    await read();
     toast("success", "Saved", "open: " + next);
   } catch (e) {
     toast("error", "Could not save", "You may not have permission, or the connection failed.");
