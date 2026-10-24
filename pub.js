@@ -295,12 +295,28 @@ let lang = "en";
 Object.assign(D.en, {
   "t.index": "Hamstore Integrated Services - Drinks and U-Fresh Water by the Carton",
   "tk.6": "Sold by the carton",
-  "ab.l4": "Cartons only (no single pieces)"
+  "ab.l4": "Cartons only (no single pieces)",
+  "hero.sub": "Drinks, bottled water and sachet water by the carton, in every one of our branches.",
+  "w2t": "Direct from the company",
+  "w2p": "Cartons straight from the company, at fair prices.",
+  "q3": "Can I buy a single bottle?",
+  "a3": "No. Everything is sold by the carton only, because the company supplies by the carton.",
+  "r.soda.p": "Cold bottled soft drinks, sold by the carton.",
+  "ab.p1": "Hamstore Integrated Services supplies drinks and water by the carton through our branches.",
+  "ab.l1": "Bottled soft drinks, by the carton"
 });
 Object.assign(D.ha, {
   "t.index": "Hamstore Integrated Services - Abin Sha da Ruwan U-Fresh da Katon",
   "tk.6": "Ana sayarwa da katon",
-  "ab.l4": "Katon kawai (ba guda ɗaya ba)"
+  "ab.l4": "Katon kawai (ba guda ɗaya ba)",
+  "hero.sub": "Lemuka, ruwan kwalba da na leda da katon, a kowane shago namu.",
+  "w2t": "Kai tsaye daga kamfani",
+  "w2p": "Katon kai tsaye daga kamfani, a farashi mai kyau.",
+  "q3": "Zan iya sayen guda ɗaya?",
+  "a3": "A'a. Ana sayarwa da katon ne kawai, domin kamfani yana bayarwa da katon.",
+  "r.soda.p": "Lemon kwalba mai sanyi, ana sayarwa da katon.",
+  "ab.p1": "Hamstore Integrated Services na sayar da lemuka da ruwa da katon ta shagunanmu.",
+  "ab.l1": "Lemon kwalba, da katon"
 });
 
 export const getLang = () => lang;
