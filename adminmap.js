@@ -1,390 +1,235 @@
 import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
-import { toast, openModal, loadMap, tiles, km, telHref, esc, ago } from "./allui.js";
-import { liveMarker, savePoint, loadPoints, prunePoints, fmtDur, bearing } from "./ui2.js";
+import { toast, confirmBox, openModal, imageFieldHTML, imagePicker, loadMap, tiles, geocode, telHref, esc } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-await requireAdmin("map");
+await requireAdmin("branch");
 
+const PAGE = 12;
 const $ = id => document.getElementById(id);
+const items = new Map();
+const flags = { water: false, drinks: false };
+let fetched = 0;
+let done = false;
+let busy = false;
+let editingId = null;
+let point = null;
+let marker = null;
+
+const norm = r => ({ ...r, createdAt: Number(r.created_at) || 0 });
+
+$("imgField").innerHTML = imageFieldHTML();
+const img = imagePicker($("imgField"));
+
 const L = await loadMap();
-const map = L.map("fmap").setView([9.0765, 7.3986], 6);
+const map = L.map("map").setView([9.0765, 7.3986], 6);
 tiles(L).addTo(map);
 setTimeout(() => map.invalidateSize(), 300);
-prunePoints();
 
-const vehicles = new Map();
-const live = {};
-const markers = new Map();
-const lastTs = {};
-const stopSince = {};
-const heads = {};
-let selected = null;
-let tab = "live";
-let follow = false;
-let trail = null;
-let fitted = false;
-
-const isLive = id => !!live[id] && Date.now() - live[id].ts < 120000;
-
-function stateOf(id) {
-  if (!isLive(id)) return "offline";
-  return live[id].speed >= 3 ? "moving" : "stopped";
-}
-
-const clock = ts => new Date(ts).toLocaleString("en-NG", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
-
-function statusText(id) {
-  const t = live[id];
-  if (!t) return "No signal yet";
-  if (!isLive(id)) return "Offline since " + clock(t.ts) + ". Phone is off or has no signal.";
-  if (t.speed >= 3) return "Moving, " + Math.round(t.speed) + " km/h";
-  return "Stopped" + (stopSince[id] ? " for " + fmtDur(Date.now() - stopSince[id]) : "");
-}
-
-function counts() {
-  const all = [...vehicles.keys()];
-  const on = all.filter(isLive).length;
-  $("nLive").textContent = on;
-  $("nOff").textContent = all.length - on;
-  $("nAll").textContent = all.length;
-}
-
-function drawList() {
-  counts();
-  const rows = [...vehicles.values()].filter(v => tab === "all" || (tab === "live" ? isLive(v.id) : !isLive(v.id)));
-  $("empty").hidden = rows.length > 0;
-  $("list").innerHTML = rows.map(v => {
-    const s = stateOf(v.id);
-    const t = live[v.id];
-    return `<article class="panel vitem ${s === "moving" ? "live" : s === "stopped" ? "stopped" : ""} ${selected === v.id ? "sel" : ""}" data-id="${esc(v.id)}">
-      <h4><span class="dotlive"></span>${esc(v.name)} <span class="meta">${esc(v.plate)}</span></h4>
-      <p class="meta">${esc(statusText(v.id))}</p>
-      ${t && t.bat != null ? `<p class="meta"><i class="fa-solid fa-battery-half"></i> ${t.bat}% &nbsp;·&nbsp; ${ago(t.ts)}</p>` : ""}
-    </article>`;
-  }).join("");
-}
-
-function drawDetail() {
-  const box = $("detail");
-  if (!selected || !vehicles.has(selected)) { box.hidden = true; return; }
-  const v = vehicles.get(selected);
-  const t = live[selected];
-  const s = stateOf(selected);
-  const speed = t ? Math.round(t.speed) : 0;
-  box.hidden = false;
-  box.innerHTML = `<div class="rh"><h3>${esc(v.name)} <span class="meta">${esc(v.plate)}</span></h3><span class="chipc ${s === "offline" ? "wait" : "ok"}">${s === "moving" ? "Moving" : s === "stopped" ? "Stopped" : "Offline"}</span></div>
-    <div class="gauge"><b>${speed}</b><span class="meta">km/h</span></div>
-    <div class="gbar"><i style="width:${Math.min(100, speed / 1.2)}%"></i></div>
-    <p class="meta">${esc(statusText(selected))}${t && t.bat != null ? " Battery " + t.bat + "%." : ""}</p>
-    ${v.driverName ? `<p class="meta"><i class="fa-solid fa-user"></i> ${esc(v.driverName)}${v.phone ? " · " + esc(v.phone) : ""}</p>` : ""}
-    <div class="dact">
-      <button class="btn sm ${follow ? "red" : ""}" type="button" data-act="follow"><i class="fa-solid fa-location-crosshairs"></i>${follow ? "Following" : "Follow"}</button>
-      <button class="ghost sm" type="button" data-act="history"><i class="fa-solid fa-clock-rotate-left"></i>History</button>
-      ${v.phone ? `<a class="ghost sm" href="${telHref(v.phone)}"><i class="fa-solid fa-phone"></i>Call driver</a>` : ""}
-    </div>`;
-}
-
-function refreshMarker(id) {
-  const m = markers.get(id);
-  if (m) m.setState(stateOf(id), live[id] ? live[id].speed : 0, heads[id]);
-}
-
-function onTracking(id, t) {
-  const prev = live[id];
-  live[id] = t;
-  const v = vehicles.get(id);
-  if (!v) return;
-  if (lastTs[id] !== t.ts) {
-    lastTs[id] = t.ts;
-    savePoint({ vid: id, lat: t.lat, lng: t.lng, speed: t.speed, ts: t.ts });
-    if (selected === id && trail) trail.addLatLng([t.lat, t.lng]);
-  }
-  if (typeof t.head === "number") heads[id] = t.head;
-  else if (prev && km(prev, t) > 0.005) heads[id] = bearing(prev, t);
-  if (t.speed < 3) { if (!stopSince[id]) stopSince[id] = t.ts; } else delete stopSince[id];
-
-  let m = markers.get(id);
-  if (!m) {
-    m = liveMarker(L, map, [t.lat, t.lng], () => select(id, false));
-    markers.set(id, m);
-  } else {
-    m.moveTo(t.lat, t.lng);
-  }
-  m.marker.bindTooltip(`${v.name} (${v.plate})`);
-  refreshMarker(id);
-  if (selected === id && follow) map.panTo([t.lat, t.lng]);
-}
-
-async function select(id, fly = true) {
-  selected = id;
-  follow = false;
-  drawList();
-  drawDetail();
-  if (trail) { map.removeLayer(trail); trail = null; }
-  if (live[id] && fly) map.flyTo([live[id].lat, live[id].lng], 16);
-  const pts = (await loadPoints(id)).filter(p => Date.now() - p.ts < 7200000).slice(-80).map(p => [p.lat, p.lng]);
-  if (selected !== id) return;
-  trail = L.polyline(pts, { color: "#e03a3a", weight: 4, opacity: 0.85 }).addTo(map);
-}
-
-$("list").addEventListener("click", e => {
-  const card = e.target.closest(".vitem");
-  if (card) select(card.dataset.id);
-});
-
-$("tabs").querySelectorAll(".chip").forEach(c => c.onclick = () => {
-  tab = c.dataset.t;
-  $("tabs").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c));
-  drawList();
-});
-
-$("detail").addEventListener("click", e => {
-  const act = e.target.closest("[data-act]")?.dataset.act;
-  if (act === "follow") {
-    follow = !follow;
-    if (follow && live[selected]) map.flyTo([live[selected].lat, live[selected].lng], 16);
-    drawDetail();
-  }
-  if (act === "history") openHistory(selected);
-});
-
-async function openHistory(id) {
-  const v = vehicles.get(id);
-  showLoading("Loading history...");
-  let points = [];
-  try {
-    const local = await loadPoints(id);
-    let server = [];
-    try {
-      const rows = must(await supabase.from("trails").select("lat,lng,t").eq("vehicle_id", id).order("t", { ascending: false }).limit(1500)) || [];
-      server = rows.map(r => ({ lat: r.lat, lng: r.lng, ts: Number(r.t) }));
-    } catch (e) {}
-    points = [...local, ...server].sort((a, b) => a.ts - b.ts).filter((p, i, a) => i === 0 || Math.abs(p.ts - a[i - 1].ts) > 3000);
-    points.forEach((p, i) => {
-      if (typeof p.speed === "number") return;
-      const q = points[i - 1];
-      const h = q ? (p.ts - q.ts) / 3600000 : 0;
-      p.speed = q && h > 0 && h < 0.1 ? Math.min(160, km(q, p) / h) : 0;
+function setPoint(lat, lng, zoom) {
+  point = { lat, lng };
+  if (!marker) {
+    marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    marker.on("dragend", () => {
+      const p = marker.getLatLng();
+      point = { lat: p.lat, lng: p.lng };
+      $("pin").textContent = `Pin set: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
     });
+  } else {
+    marker.setLatLng([lat, lng]);
+  }
+  if (zoom) map.setView([lat, lng], zoom);
+  $("pin").textContent = `Pin set: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+map.on("click", e => setPoint(e.latlng.lat, e.latlng.lng));
+
+$("find").onclick = async () => {
+  const text = $("fAddr").value.trim();
+  if (text.length < 5) return toast("error", "Address needed", "Type the full address first.");
+  showLoading("Finding address...");
+  try {
+    const hit = await geocode(text);
+    if (!hit) toast("error", "Address not found", "Add the town and state, or tap the map.");
+    else setPoint(hit.lat, hit.lng, 16);
+  } catch (e) {
+    toast("error", "Search failed", "Check your internet and try again.");
   } finally {
     hideLoading();
   }
+};
 
+function paintChips() {
+  $("chips").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", flags[c.dataset.k]));
+}
+$("chips").querySelectorAll(".chip").forEach(c => c.onclick = () => { flags[c.dataset.k] = !flags[c.dataset.k]; paintChips(); });
+
+async function fetchPage() {
+  const rows = (must(await supabase.from("branches").select("*").order("created_at", { ascending: false }).range(fetched, fetched + PAGE - 1)) || []).map(norm);
+  fetched += rows.length;
+  if (rows.length < PAGE) done = true;
+  return rows;
+}
+
+function cardHTML(b) {
+  return `<article class="panel item" data-id="${esc(b.id)}">
+    <img class="thumb" loading="lazy" decoding="async" src="${esc(b.image)}" alt="${esc(b.name)}" data-act="view">
+    <div class="pb">
+      <h4>${esc(b.name)}</h4>
+      <p class="meta"><i class="fa-solid fa-location-dot"></i> ${esc(b.address)}</p>
+      ${b.phone ? `<p class="meta"><i class="fa-solid fa-phone"></i> ${esc(b.phone)}</p>` : ""}
+      <div class="tags">${b.water ? '<span class="tag w">Water</span>' : ""}${b.drinks ? '<span class="tag d">Drinks</span>' : ""}<span class="tag">${esc(b.id)}</span></div>
+      <div class="pa">
+        <button class="ibtn" data-act="view" aria-label="View"><i class="fa-solid fa-eye"></i></button>
+        <button class="ibtn edit" data-act="edit" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
+        <button class="ibtn del" data-act="del" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div></article>`;
+}
+
+function render() {
+  const list = [...items.values()].sort((a, b) => b.createdAt - a.createdAt);
+  $("grid").innerHTML = list.map(cardHTML).join("");
+  $("count").textContent = list.length;
+  $("empty").hidden = list.length > 0;
+  $("more").hidden = done;
+}
+
+async function loadMore() {
+  if (busy) return;
+  busy = true;
+  $("more").disabled = true;
+  try {
+    (await fetchPage()).forEach(r => items.set(r.id, r));
+    render();
+  } catch (e) {
+    toast("error", "Could not load branches", "Check your internet and try again.");
+  } finally {
+    busy = false;
+    $("more").disabled = false;
+  }
+}
+$("more").onclick = loadMore;
+
+function resetForm() {
+  editingId = null;
+  $("form").reset();
+  img.clear();
+  flags.water = flags.drinks = false;
+  paintChips();
+  if (marker) { map.removeLayer(marker); marker = null; }
+  point = null;
+  $("pin").textContent = "Tap the map or drag the pin to set the exact spot.";
+  $("formTitle").textContent = "New branch";
+  $("formSub").textContent = "Branches show on the website and on its map.";
+  $("submitBtn").querySelector("span").textContent = "Add branch";
+  $("cancelEdit").hidden = true;
+}
+$("cancelEdit").onclick = resetForm;
+
+function startEdit(id) {
+  const b = items.get(id);
+  editingId = id;
+  $("fName").value = b.name;
+  $("fPhone").value = b.phone || "";
+  $("fPhone2").value = b.phone2 || "";
+  $("fPhone3").value = b.phone3 || "";
+  $("fOpens").value = b.opens || "";
+  $("fCloses").value = b.closes || "";
+  $("fLink").value = b.link || "";
+  $("fAddr").value = b.address;
+  img.set(b.image);
+  flags.water = !!b.water;
+  flags.drinks = !!b.drinks;
+  paintChips();
+  setPoint(b.lat, b.lng, 16);
+  $("formTitle").textContent = "Edit " + id;
+  $("formSub").textContent = "Change the details, then save.";
+  $("submitBtn").querySelector("span").textContent = "Save changes";
+  $("cancelEdit").hidden = false;
+  $("form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function viewBranch(id) {
+  const b = items.get(id);
   const box = document.createElement("div");
-  box.className = "hist";
-  box.innerHTML = `<h3>${esc(v.name)} history</h3>
-    <div class="chips" id="hr"><button class="chip on" data-r="today">Today</button><button class="chip" data-r="yday">Yesterday</button><button class="chip" data-r="all">All</button></div>
-    <div class="map" id="hmap"></div>
-    <div class="hstats"><div><b id="hDist">0 km</b><small>Distance</small></div><div><b id="hMax">0 km/h</b><small>Top speed</small></div><div><b id="hDrive">0 min</b><small>Driving</small></div><div><b id="hStops">0</b><small>Stops</small></div></div>
-    <div class="player"><button class="btn sm" id="hPlay" type="button"><i class="fa-solid fa-play"></i></button><input id="hSlide" type="range" min="0" max="0" value="0"><span class="tm" id="hTime">-</span></div>
-    <div class="chips" id="hRate" style="margin-bottom:4px"><button class="chip on" data-x="1">1x</button><button class="chip" data-x="4">4x</button><button class="chip" data-x="16">16x</button></div>
-    <p class="meta" id="hEmpty" hidden>No history for this period yet. History builds up while this page is open and from the vehicle trail.</p>
-    <div class="row" style="margin-top:10px"><button class="ghost" id="hClose" type="button">Close</button></div>`;
+  box.innerHTML = `<img class="vimg" src="${esc(b.image)}" alt="${esc(b.name)}"><h3>${esc(b.name)}</h3><p>${esc(b.address)}</p>
+    <div class="row" style="justify-content:flex-start;margin-bottom:14px">
+      ${b.phone ? `<a class="btn" href="${telHref(b.phone)}"><i class="fa-solid fa-phone"></i>Call</a>` : ""}
+      <a class="btn red" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${b.lat},${b.lng}"><i class="fa-solid fa-diamond-turn-right"></i>Open map</a>
+      ${b.link ? `<a class="ghost" target="_blank" rel="noopener" href="${esc(b.link)}">Website</a>` : ""}
+    </div><div class="row"><button class="ghost" id="closeView" type="button">Close</button></div>`;
   const close = openModal(box);
-  box.parentElement.classList.add("wide");
-  box.querySelector("#hClose").onclick = () => { clearInterval(timer); close(); };
+  box.querySelector("#closeView").onclick = close;
+}
 
-  const hm = L.map(box.querySelector("#hmap")).setView([9.0765, 7.3986], 6);
-  tiles(L).addTo(hm);
-  const layer = L.layerGroup().addTo(hm);
-  let sim = null;
-  let list = [];
-  let idx = 0;
-  let timer = 0;
-  let rate = 1;
-  setTimeout(() => hm.invalidateSize(), 250);
-
-  const flag = (color, icon) => L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 30], html: `<div class="flag" style="background:${color}"><i class="fa-solid ${icon}"></i></div>` });
-
-  function range(r) {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    const today = d.getTime();
-    if (r === "today") return points.filter(p => p.ts >= today);
-    if (r === "yday") return points.filter(p => p.ts >= today - 86400000 && p.ts < today);
-    return points;
-  }
-
-  function show(r) {
-    clearInterval(timer);
-    box.querySelector("#hPlay").innerHTML = '<i class="fa-solid fa-play"></i>';
-    layer.clearLayers();
-    sim = null;
-    list = range(r);
-    box.querySelector("#hEmpty").hidden = list.length > 0;
-    box.querySelector("#hSlide").max = Math.max(0, list.length - 1);
-    box.querySelector("#hSlide").value = 0;
-    idx = 0;
-    if (!list.length) {
-      ["#hDist", "#hMax", "#hDrive", "#hStops"].forEach((s, i) => (box.querySelector(s).textContent = ["0 km", "0 km/h", "0 min", "0"][i]));
-      box.querySelector("#hTime").textContent = "-";
-      return;
-    }
-    let dist = 0, drive = 0, top = 0;
-    const segs = [[list[0]]];
-    for (let i = 1; i < list.length; i++) {
-      const p = list[i];
-      const q = list[i - 1];
-      const gap = p.ts - q.ts;
-      if (gap > 600000) {
-        segs.push([p]);
-        L.polyline([[q.lat, q.lng], [p.lat, p.lng]], { color: "#7d8f86", weight: 3, dashArray: "4 8" }).addTo(layer);
-      } else {
-        segs[segs.length - 1].push(p);
-        dist += km(q, p);
-        if (p.speed >= 3) drive += gap;
-      }
-      top = Math.max(top, p.speed);
-    }
-    segs.forEach(sg => L.polyline(sg.map(p => [p.lat, p.lng]), { color: "#e03a3a", weight: 4, opacity: 0.9 }).addTo(layer));
-
-    let stops = 0;
-    let run = null;
-    const endRun = () => {
-      if (run && run.last.ts - run.first.ts >= 180000) {
-        stops++;
-        L.marker([run.first.lat, run.first.lng], { icon: flag("#e08a1a", "fa-pause") }).addTo(layer).bindTooltip("Stopped " + fmtDur(run.last.ts - run.first.ts) + " at " + clock(run.first.ts));
-      }
-      run = null;
-    };
-    list.forEach((p, i) => {
-      const brk = i > 0 && p.ts - list[i - 1].ts > 600000;
-      if (brk) endRun();
-      if (p.speed < 3) { if (!run) run = { first: p, last: p }; else run.last = p; } else endRun();
-    });
-    endRun();
-
-    L.marker([list[0].lat, list[0].lng], { icon: flag("#2fb36d", "fa-flag") }).addTo(layer).bindTooltip("Start " + clock(list[0].ts));
-    const end = list[list.length - 1];
-    L.marker([end.lat, end.lng], { icon: flag("#e03a3a", "fa-location-dot") }).addTo(layer).bindTooltip("Last seen " + clock(end.ts));
-    hm.fitBounds(L.latLngBounds(list.map(p => [p.lat, p.lng])).pad(0.2));
-
-    box.querySelector("#hDist").textContent = dist.toFixed(1) + " km";
-    box.querySelector("#hMax").textContent = Math.round(top) + " km/h";
-    box.querySelector("#hDrive").textContent = fmtDur(drive);
-    box.querySelector("#hStops").textContent = stops;
-    sim = liveMarker(L, hm, [list[0].lat, list[0].lng]);
-    place(0, false);
-  }
-
-  function place(i, animate = true) {
-    idx = i;
-    const p = list[i];
-    if (!p) return;
-    sim.moveTo(p.lat, p.lng, animate ? 250 : 1);
-    const q = list[i - 1];
-    sim.setState(p.speed >= 3 ? "moving" : "stopped", p.speed, q && km(q, p) > 0.003 ? bearing(q, p) : null);
-    box.querySelector("#hSlide").value = i;
-    box.querySelector("#hTime").textContent = new Date(p.ts).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" }) + " · " + Math.round(p.speed) + " km/h";
-  }
-
-  box.querySelector("#hr").querySelectorAll(".chip").forEach(c => c.onclick = () => {
-    box.querySelector("#hr").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c));
-    show(c.dataset.r);
-  });
-  box.querySelector("#hRate").querySelectorAll(".chip").forEach(c => c.onclick = () => {
-    rate = Number(c.dataset.x);
-    box.querySelector("#hRate").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c));
-  });
-  box.querySelector("#hSlide").oninput = e => { if (sim) place(Number(e.target.value), false); };
-  box.querySelector("#hPlay").onclick = () => {
-    if (!list.length) return;
-    if (timer) {
-      clearInterval(timer);
-      timer = 0;
-      box.querySelector("#hPlay").innerHTML = '<i class="fa-solid fa-play"></i>';
-      return;
-    }
-    if (idx >= list.length - 1) place(0, false);
-    box.querySelector("#hPlay").innerHTML = '<i class="fa-solid fa-pause"></i>';
-    timer = setInterval(() => {
-      if (!document.body.contains(box)) return clearInterval(timer);
-      if (idx >= list.length - 1) {
-        clearInterval(timer);
-        timer = 0;
-        box.querySelector("#hPlay").innerHTML = '<i class="fa-solid fa-play"></i>';
-        return;
-      }
-      place(idx + 1);
-    }, Math.max(40, 300 / rate));
-  };
-
-  show(range("today").length ? "today" : "all");
-  if (!range("today").length) {
-    box.querySelector("#hr").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x.dataset.r === "all"));
+async function removeBranch(id) {
+  if (!(await confirmBox({ title: "Delete this branch?", text: "It will be removed from the website and map.", okText: "Delete", danger: true }))) return;
+  showLoading("Deleting...");
+  try {
+    const rows = must(await supabase.from("branches").delete().eq("id", id).select("id"));
+    if (!rows || !rows.length) throw new Error("denied");
+    items.delete(id);
+    if (editingId === id) resetForm();
+    render();
+    toast("success", "Deleted", id + " was removed.");
+  } catch (e) {
+    toast("error", "Could not delete", "You may not have permission.");
+  } finally {
+    hideLoading();
   }
 }
 
-/* ---------- SUPABASE: vehicles + tracking ---------- */
-const normVehicle = r => ({ ...r, driverName: r.driver_name });
-const normTracking = r => ({
-  lat: Number(r.lat),
-  lng: Number(r.lng),
-  speed: Number(r.speed) || 0,
-  head: typeof r.head === "number" ? r.head : null,
-  bat: typeof r.bat === "number" ? r.bat : null,
-  ts: Number(r.ts) || 0
+$("grid").addEventListener("click", e => {
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const id = btn.closest(".item").dataset.id;
+  if (btn.dataset.act === "view") viewBranch(id);
+  if (btn.dataset.act === "edit") startEdit(id);
+  if (btn.dataset.act === "del") removeBranch(id);
 });
 
-function fitOnce() {
-  if (!fitted && markers.size) {
-    fitted = true;
-    map.fitBounds(L.featureGroup([...markers.values()].map(m => m.marker)).getBounds().pad(0.3), { maxZoom: 15 });
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = $("fName").value.trim();
+  const phone = $("fPhone").value.trim();
+  const phone2 = $("fPhone2").value.trim();
+  const phone3 = $("fPhone3").value.trim();
+  const opens = $("fOpens").value;
+  const closes = $("fCloses").value;
+  const link = $("fLink").value.trim();
+  const address = $("fAddr").value.trim();
+  if (name.length < 2) return toast("error", "Name needed", "Enter the branch name.");
+  if ([phone, phone2, phone3].some(x => x && !/^[0-9+\s-]{7,20}$/.test(x))) return toast("error", "Phone number", "Enter valid phone numbers.");
+  if (!!opens !== !!closes) return toast("error", "Opening hours", "Enter both the opening and the closing time, or leave both empty.");
+  if (!img.has()) return toast("error", "Image needed", "Upload a photo or paste a link.");
+  if (address.length < 5) return toast("error", "Address needed", "Enter the full address.");
+  if (!point) return toast("error", "Pin needed", "Tap Find on map, or tap the map to set the spot.");
+  if (editingId && !(await confirmBox({ title: "Save changes?", text: "The website will show the new details.", okText: "Save" }))) return;
+
+  showLoading(img.uploads() ? "Uploading image..." : "Saving...");
+  try {
+    const image = await img.resolve();
+    const data = { name, phone, phone2, phone3, opens, closes, link, image, address, lat: point.lat, lng: point.lng, water: flags.water, drinks: flags.drinks };
+    if (editingId) {
+      const rows = must(await supabase.from("branches").update({ ...data, updated_at: Date.now() }).eq("id", editingId).select("*"));
+      if (!rows || !rows.length) throw new Error("denied");
+      items.set(editingId, norm(rows[0]));
+      toast("success", "Saved", editingId + " was updated.");
+    } else {
+      // ID (BRANCH0001...) ana bayar da ita kai tsaye daga database
+      const row = must(await supabase.from("branches").insert({ ...data, created_at: Date.now() }).select("*").single());
+      items.set(row.id, norm(row));
+      toast("success", "Branch added", row.id + " is now live.");
+    }
+    resetForm();
+    render();
+  } catch (err) {
+    toast("error", "Could not save", err.message === "upload" ? "Image upload failed. Try again." : "You may not have permission, or the connection failed.");
+  } finally {
+    hideLoading();
   }
-}
+});
 
-async function loadVehicles() {
-  const rows = must(await supabase.from("vehicles").select("id,name,plate,driver_name,phone")) || [];
-  const ids = new Set();
-  rows.forEach(r => { ids.add(r.id); vehicles.set(r.id, normVehicle(r)); });
-  [...vehicles.keys()].forEach(id => {
-    if (ids.has(id)) return;
-    vehicles.delete(id);
-    if (markers.has(id)) { markers.get(id).remove(); markers.delete(id); }
-  });
-  Object.keys(live).forEach(id => { if (vehicles.has(id) && !markers.has(id)) onTracking(id, live[id]); });
-  drawList();
-  drawDetail();
-}
-
-async function loadTracking() {
-  const rows = must(await supabase.from("tracking").select("*")) || [];
-  rows.forEach(r => onTracking(r.vehicle_id, normTracking(r)));
-  drawList();
-  drawDetail();
-  fitOnce();
-}
-
-showLoading("Loading fleet...");
-try {
-  await loadVehicles();
-  await loadTracking();
-} catch (e) {
-  toast("error", "Could not load vehicles", "Check your internet and try again.");
-}
+showLoading("Loading branches...");
+await loadMore();
 hideLoading();
-
-// Kai tsaye (Realtime)
-supabase
-  .channel("fleet-vehicles")
-  .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, () => { loadVehicles().catch(() => {}); })
-  .subscribe();
-
-supabase
-  .channel("fleet-tracking")
-  .on("postgres_changes", { event: "*", schema: "public", table: "tracking" }, payload => {
-    const r = payload.new;
-    if (!r || !r.vehicle_id) return;
-    onTracking(r.vehicle_id, normTracking(r));
-    drawList();
-    drawDetail();
-    fitOnce();
-  })
-  .subscribe();
-
-setInterval(() => {
-  [...markers.keys()].forEach(refreshMarker);
-  drawList();
-  drawDetail();
-}, 15000);
