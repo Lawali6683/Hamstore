@@ -1,9 +1,7 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { showLoading, hideLoading } from "./loading.js";
 import { t, initLang, esc, naira, telHref, thumb, toast, compress, uploadToImgur, setDevice, PHONE_MAIN } from "./pub.js";
 
-const db = getDatabase(app);
 const $ = id => document.getElementById(id);
 
 let items = [];
@@ -207,12 +205,21 @@ initLang();
 showLoading(t("loading"));
 try {
   const want = wanted();
-  const rows = await Promise.all([...want.keys()].map(id => get(ref(db, "posts/" + id)).then(s => ({ id, v: s.val() })).catch(() => ({ id, v: null }))));
-  items = rows.filter(r => r.v && typeof r.v.price === "number").map(r => ({ id: r.id, name: r.v.name, unit: r.v.unit, price: r.v.price, image: r.v.image, qty: want.get(r.id) }));
-  const snap = await get(ref(db, "settings/payment")).catch(() => null);
-  accounts = [];
-  if (snap) snap.forEach(c => { const v = c.val(); if (v && v.number) accounts.push(v); });
-  closed = (await get(ref(db, "settings/shop/open")).then(s => s.val()).catch(() => null)) === "no";
+  const ids = [...want.keys()];
+
+  const [postsRes, accRes, shopRes] = await Promise.all([
+    ids.length ? supabase.from("posts").select("id,name,unit,price,image").in("id", ids) : Promise.resolve({ data: [], error: null }),
+    supabase.from("payment_accounts").select("bank,name,number").order("created_at", { ascending: true }),
+    supabase.from("settings").select("value").eq("key", "shop_open").maybeSingle()
+  ]);
+
+  const rows = must(postsRes) || [];
+  items = rows
+    .filter(r => Number.isFinite(Number(r.price)))
+    .map(r => ({ id: r.id, name: r.name, unit: r.unit, price: Number(r.price), image: r.image, qty: want.get(r.id) }));
+
+  accounts = (accRes.error ? [] : accRes.data || []).filter(v => v && v.number);
+  closed = !shopRes.error && !!shopRes.data && shopRes.data.value === "no";
 } catch (e) {
   toast("error", t("err.net"));
 }
