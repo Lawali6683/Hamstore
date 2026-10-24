@@ -1,86 +1,67 @@
-import { toast } from "./allui.js";
-import { prettyCode, codeKey } from "./ui2.js";
-import { showLoading, hideLoading } from "./loading.js";
+const SB_URL = "https://eqbrczrlxwffvizjcdvu.supabase.co";
 
-const $ = id => document.getElementById(id);
-const params = new URLSearchParams(location.search);
-const steps = [...document.querySelectorAll(".step")];
-let vehicle = null;
+const reply = (data, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 
-if (params.get("c")) $("mCode").value = prettyCode(codeKey(params.get("c")));
-if (params.get("k")) $("mKey").value = params.get("k");
-if (!params.get("c") || !params.get("k")) $("manual").hidden = false;
+const sbHeaders = (env, extra = {}) => {
+  const k = env.SUPABASE_API_KEY;
+  const h = { apikey: k, "Content-Type": "application/json", ...extra };
+  if (k.startsWith("eyJ")) h.Authorization = `Bearer ${k}`;
+  return h;
+};
 
-function finish(n) {
-  steps[n - 1].classList.add("done");
-  steps[n - 1].querySelector("button").hidden = true;
-  if (steps[n]) steps[n].classList.remove("lock");
+async function db(env, path, init = {}) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, { ...init, headers: sbHeaders(env, init.headers) });
+  if (!res.ok) throw new Error(`db ${res.status} ${await res.text()}`);
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
 }
 
-steps[0].querySelector("button").onclick = async () => {
-  const code = $("mCode").value.trim();
-  const key = $("mKey").value.trim();
-  if (!code || !key) return toast("error", "Missing details", "Enter your ID and key.");
-  showLoading("Checking your ID...");
+const same = (a, b) => {
+  a = String(a || "");
+  b = String(b || "");
+  if (a.length !== b.length || !a.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+};
+
+export async function onRequestPost({ request, env }) {
+  let input;
   try {
-    const res = await fetch("/api/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, key })
-    });
-    const data = await res.json();
-    if (!data.ok) return toast("error", "Could not confirm", data.message || "Check your ID and link.");
-    vehicle = { id: data.id, key, name: data.name, plate: data.plate, code: prettyCode(codeKey(code)) };
-    $("vTitle").textContent = `${data.name} (${data.plate})`;
-    $("vCode").textContent = vehicle.code;
-    $("vbox").hidden = false;
-    $("manual").hidden = true;
-    toast("success", "ID confirmed", "Continue with the next step.");
-    finish(1);
+    input = await request.json();
   } catch (e) {
-    toast("error", "Network error", "Check your internet and try again.");
-  } finally {
-    hideLoading();
+    return reply({ ok: false, message: "Invalid request." }, 400);
   }
-};
 
-steps[1].querySelector("button").onclick = () => {
-  if (!navigator.geolocation) return toast("error", "Not supported", "This phone cannot share its location.");
-  showLoading("Waiting for permission...");
-  navigator.geolocation.getCurrentPosition(() => {
-    hideLoading();
-    toast("success", "Location allowed", "GPS is working.");
-    finish(2);
-  }, err => {
-    hideLoading();
-    toast("error", err.code === 1 ? "Location blocked" : "No GPS signal", err.code === 1 ? "Allow location for this site in your browser settings." : "Move to an open area and try again.");
-  }, { enableHighAccuracy: true, timeout: 20000 });
-};
+  const code = String(input.code || "").trim().toLowerCase().replace(/[\/\s]+/g, "-");
+  const key = String(input.key || "").trim();
+  if (!/^ham-\d{2}-\d{5}$/.test(code) || key.length < 8) return reply({ ok: false, message: "Check the code and the link." }, 400);
+  if (!env.SUPABASE_API_KEY) return reply({ ok: false, message: "Server is not set up yet." }, 500);
 
-steps[2].querySelector("button").onclick = async () => {
   try {
-    if ("wakeLock" in navigator) {
-      const lock = await navigator.wakeLock.request("screen");
-      lock.release();
-      toast("success", "Screen will stay on", "Keep the page open while driving.");
-    } else {
-      toast("success", "Almost done", "Turn off screen timeout in your phone settings while driving.");
+    const rows = await db(env, `vehicles?select=id,key,name,plate,driver_name,confirmed_at&code_key=eq.${code}`);
+    if (!rows || !rows.length) return reply({ ok: false, message: "This code was not found." }, 404);
+
+    const vehicle = rows[0];
+    if (!same(vehicle.key, key)) return reply({ ok: false, message: "This link is not valid." }, 401);
+
+    if (!vehicle.confirmed_at) {
+      await db(env, `vehicles?id=eq.${vehicle.id}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ confirmed_at: Date.now() }),
+      });
     }
+    return reply({ ok: true, id: vehicle.id, name: vehicle.name, plate: vehicle.plate, driver: vehicle.driver_name || "" });
   } catch (e) {
-    toast("success", "Almost done", "Turn off screen timeout in your phone settings while driving.");
+    return reply({ ok: false, message: "Something went wrong. Try again." }, 500);
   }
-  finish(3);
-};
+}
 
-steps[3].querySelector("button").onclick = () => {
-  try {
-    localStorage.setItem("hs_vid", vehicle.id);
-    localStorage.setItem("hs_vkey", vehicle.key);
-    localStorage.setItem("hs_vname", `${vehicle.name} (${vehicle.plate})`);
-    localStorage.setItem("hs_vcode", vehicle.code);
-    localStorage.setItem("hs_confirmed", "1");
-  } catch (e) {
-    return toast("error", "Cannot save", "Turn off private browsing and try again.");
-  }
-  location.href = "tracker.html";
-};
+export async function onRequest() {
+  return reply({ ok: false, message: "Method not allowed." }, 405);
+}
