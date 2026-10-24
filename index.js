@@ -1,9 +1,7 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, get, onValue, query, orderByChild, limitToLast, endBefore } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { showLoading, hideLoading } from "./loading.js";
 import { t, getLang, initLang, esc, naira, telHref, thumb, toast, km, branchStatus, loadMap, tiles, setDevice, approxLocation } from "./pub.js";
 
-const db = getDatabase(app);
 const missing = [];
 const ghosts = {};
 const $ = id => {
@@ -15,7 +13,7 @@ const $ = id => {
 const LIMIT = 60;
 const MORE = 24;
 
-/* Real product photos (company items) */
+
 const IMG = {
   sachet: "https://i.imgur.com/gh63h20.png",
   bottle: "https://i.imgur.com/GNmZBuL.png",
@@ -27,12 +25,16 @@ let posts = [];
 let branches = [];
 let phones = [];
 let cart = {};
-let older = { key: null, time: null, more: false };
+let older = { more: false };
 let spotIdx = 0;
 let spotTimer = 0;
 let busyMore = false;
 
-/* Everything is sold by the carton only */
+
+const normPost = r => ({ ...r, price: Number(r.price) || 0, createdAt: Number(r.created_at) || 0 });
+const normBranch = r => ({ ...r, createdAt: Number(r.created_at) || 0 });
+
+
 const unitLabel = () => t("cart.carton");
 
 function loadCart() {
@@ -533,14 +535,11 @@ $("mq").addEventListener("pointerdown", () => $("mq").classList.add("touch"));
 let mqT = 0;
 ["pointerup", "pointercancel"].forEach(ev => $("mq").addEventListener(ev, () => { clearTimeout(mqT); mqT = setTimeout(() => $("mq").classList.remove("touch"), 4000); }));
 
+
 async function loadPosts() {
-  const snap = await get(query(ref(db, "posts"), orderByChild("createdAt"), limitToLast(LIMIT)));
-  const rows = [];
-  snap.forEach(c => { rows.push({ id: c.key, ...c.val() }); });
-  rows.sort((a, b) => b.createdAt - a.createdAt);
+  const rows = (must(await supabase.from("posts").select("*").order("created_at", { ascending: false }).range(0, LIMIT - 1)) || []).map(normPost);
   posts = rows;
-  const last = rows[rows.length - 1];
-  older = { key: last ? last.id : null, time: last ? last.createdAt : null, more: rows.length >= LIMIT };
+  older = { more: rows.length >= LIMIT };
   rows.forEach(p => { if (cart[p.id]) Object.assign(cart[p.id], { n: p.name, p: p.price, u: "Carton", i: p.image }); });
   saveCart();
 }
@@ -549,14 +548,13 @@ async function loadMore() {
   if (busyMore || !older.more) return;
   busyMore = true;
   try {
-    const snap = await get(query(ref(db, "posts"), orderByChild("createdAt"), endBefore(older.time, older.key), limitToLast(MORE)));
-    const rows = [];
-    snap.forEach(c => { rows.push({ id: c.key, ...c.val() }); });
-    rows.sort((a, b) => b.createdAt - a.createdAt);
-    if (rows.length) { older.key = rows[rows.length - 1].id; older.time = rows[rows.length - 1].createdAt; }
+    const from = posts.length;
+    const rows = (must(await supabase.from("posts").select("*").order("created_at", { ascending: false }).range(from, from + MORE - 1)) || []).map(normPost);
     older.more = rows.length >= MORE;
-    posts = posts.concat(rows);
-    rows.forEach(p => {
+    const known = new Set(posts.map(p => p.id));
+    const fresh = rows.filter(p => !known.has(p.id));
+    posts = posts.concat(fresh);
+    fresh.forEach(p => {
       if (p.category === "Water") $("wGrid").insertAdjacentHTML("beforeend", cardHTML(p, "bubble"));
       else $("mGrid").insertAdjacentHTML("beforeend", cardHTML(p, "bento"));
     });
@@ -571,17 +569,15 @@ async function loadMore() {
 $("moreBtn").onclick = loadMore;
 new IntersectionObserver(en => { if (en[0].isIntersecting) loadMore(); }, { rootMargin: "400px" }).observe($("moreBtn"));
 
+/* ---------- SUPABASE: branches ---------- */
 async function loadBranches() {
-  const snap = await get(query(ref(db, "branches"), orderByChild("createdAt"), limitToLast(40)));
-  const rows = [];
-  snap.forEach(c => { rows.push({ id: c.key, ...c.val() }); });
-  branches = rows.sort((a, b) => b.createdAt - a.createdAt).filter(b => typeof b.lat === "number" && typeof b.lng === "number");
+  const rows = (must(await supabase.from("branches").select("*").order("created_at", { ascending: false }).limit(40)) || []).map(normBranch);
+  branches = rows.filter(b => typeof b.lat === "number" && typeof b.lng === "number");
 }
 
+/* ---------- SUPABASE: phones ---------- */
 async function loadPhones() {
-  const snap = await get(ref(db, "settings/phones"));
-  const rows = [];
-  snap.forEach(c => { rows.push(c.val()); });
+  const rows = must(await supabase.from("phones").select("*").order("created_at", { ascending: true })) || [];
   phones = rows.filter(p => p && p.number);
   $("ftPhones").innerHTML = phones.map(p => `<a href="${telHref(p.number)}"><i class="fa-solid fa-phone"></i>${esc(p.label)}: ${esc(p.number)}</a>`).join("");
   $("parPhones").insertAdjacentHTML("afterbegin", phones.map(p => `<a class="bt" href="${telHref(p.number)}"><i class="fa-solid fa-phone"></i>${esc(p.label)}: ${esc(p.number)}</a>`).join(""));
@@ -715,27 +711,32 @@ $("nbBody").addEventListener("click", async e => {
 });
 $("cbNear").addEventListener("click", showNearest);
 
+
 async function loadShop() {
-  const snap = await get(ref(db, "settings/shop/open"));
-  shopOpen = snap.val() !== "no";
+  const row = must(await supabase.from("settings").select("value").eq("key", "shop_open").maybeSingle());
+  shopOpen = !row || row.value !== "no";
 }
 
 function watchShop() {
-  onValue(ref(db, "settings/shop/open"), snap => {
-    const open = snap.val() !== "no";
-    if (open === shopOpen) return;
-    shopOpen = open;
-    shopUI();
-    renderPosts();
-    renderDock();
-  });
+  supabase
+    .channel("shop-open")
+    .on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: "key=eq.shop_open" }, payload => {
+      const val = payload.new && payload.new.value;
+      const open = val !== "no";
+      if (open === shopOpen) return;
+      shopOpen = open;
+      shopUI();
+      renderPosts();
+      renderDock();
+    })
+    .subscribe();
 }
 
 function initLocation() {
   locate(false).then(l => { if (l) updateDistances(); });
 }
 
-/* Range tabs: real product photos only (no "Imported" tab) */
+
 const RANGE = [["sachet", "r.sachet", "r.sachet.p"], ["bottle", "r.bottle", "r.bottle.p"], ["soda", "r.soda", "r.soda.p"], ["carton", "r.carton", "r.carton.p"]];
 let rangeKey = "sachet";
 let statsDone = false;
