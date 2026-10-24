@@ -15,6 +15,14 @@ const $ = id => {
 const LIMIT = 60;
 const MORE = 24;
 
+/* Real product photos (company items) */
+const IMG = {
+  sachet: "https://i.imgur.com/gh63h20.png",
+  bottle: "https://i.imgur.com/GNmZBuL.png",
+  soda: "https://i.imgur.com/n9hXIkG.png",
+  carton: "https://i.imgur.com/MX49i4K.png"
+};
+
 let posts = [];
 let branches = [];
 let phones = [];
@@ -24,7 +32,8 @@ let spotIdx = 0;
 let spotTimer = 0;
 let busyMore = false;
 
-const unitLabel = u => (u === "Single" ? t("cart.single") : t("cart.carton"));
+/* Everything is sold by the carton only */
+const unitLabel = () => t("cart.carton");
 
 function loadCart() {
   try {
@@ -32,7 +41,7 @@ function loadCart() {
     cart = {};
     Object.keys(raw).forEach(id => {
       const s = raw[id];
-      if (/^POST\d{4,}$/.test(id) && s && Number.isInteger(s.q) && s.q >= 1 && s.q <= 999) cart[id] = { q: s.q, n: String(s.n || ""), p: Number(s.p) || 0, u: s.u === "Single" ? "Single" : "Carton", i: String(s.i || "") };
+      if (/^POST\d{4,}$/.test(id) && s && Number.isInteger(s.q) && s.q >= 1 && s.q <= 999) cart[id] = { q: s.q, n: String(s.n || ""), p: Number(s.p) || 0, u: "Carton", i: String(s.i || "") };
     });
   } catch (e) { cart = {}; }
 }
@@ -86,7 +95,7 @@ function toggle(id) {
   if (!shopOpen) { showNearest(); return; }
   const p = posts.find(x => x.id === id);
   if (cart[id]) delete cart[id];
-  else if (p) cart[id] = { q: 1, n: p.name, p: p.price, u: p.unit, i: p.image };
+  else if (p) cart[id] = { q: 1, n: p.name, p: p.price, u: "Carton", i: p.image };
   saveCart();
   syncCards(id);
   renderDock();
@@ -532,7 +541,7 @@ async function loadPosts() {
   posts = rows;
   const last = rows[rows.length - 1];
   older = { key: last ? last.id : null, time: last ? last.createdAt : null, more: rows.length >= LIMIT };
-  rows.forEach(p => { if (cart[p.id]) Object.assign(cart[p.id], { n: p.name, p: p.price, u: p.unit, i: p.image }); });
+  rows.forEach(p => { if (cart[p.id]) Object.assign(cart[p.id], { n: p.name, p: p.price, u: "Carton", i: p.image }); });
   saveCart();
 }
 
@@ -726,23 +735,18 @@ function initLocation() {
   locate(false).then(l => { if (l) updateDistances(); });
 }
 
-const SVG = {
-  sachet: `<svg viewBox="0 0 200 260" role="img" aria-label="Sachet"><defs><linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#0369a1"/></linearGradient><clipPath id="cs"><path d="M30 30Q100 10 170 30L162 230Q100 250 38 230Z"/></clipPath></defs><path d="M30 30Q100 10 170 30L162 230Q100 250 38 230Z" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="3"/><g clip-path="url(#cs)"><g class="wv"><path d="M-200 120q50-24 100 0t100 0t100 0t100 0V260H-200Z" fill="url(#gw)"/></g></g><path d="M34 40h132M36 54h128" stroke="#0ea5e9" stroke-width="3" stroke-dasharray="6 5" opacity=".7"/><circle class="bb" cx="80" cy="200" r="6" fill="#fff" opacity=".8"/><circle class="bb" cx="120" cy="210" r="4" fill="#fff" opacity=".8"/><circle class="bb" cx="100" cy="190" r="5" fill="#fff" opacity=".8"/><text x="100" y="150" text-anchor="middle" fill="#fff" font-size="24" font-weight="800">YouFresh</text></svg>`,
-  bottle: `<svg viewBox="0 0 160 300" role="img" aria-label="Bottle"><defs><linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#0369a1"/></linearGradient><clipPath id="cs"><path d="M62 24h36v22c0 12 18 26 18 54v170c0 22-16 28-36 28s-36-6-36-28V100c0-28 18-42 18-54z"/></clipPath></defs><path d="M62 24h36v22c0 12 18 26 18 54v170c0 22-16 28-36 28s-36-6-36-28V100c0-28 18-42 18-54z" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="3"/><g clip-path="url(#cs)"><g class="wv"><path d="M-200 110q50-20 100 0t100 0t100 0t100 0V300H-200Z" fill="url(#gw)"/></g><circle class="bb" cx="70" cy="260" r="6" fill="#fff" opacity=".8"/><circle class="bb" cx="92" cy="250" r="4" fill="#fff" opacity=".8"/><circle class="bb" cx="80" cy="270" r="5" fill="#fff" opacity=".8"/></g><rect x="58" y="6" width="44" height="20" rx="5" fill="#e03a3a"/><text x="80" y="180" text-anchor="middle" fill="#fff" font-size="20" font-weight="800">YouFresh</text></svg>`,
-  soda: `<svg viewBox="0 0 160 300" role="img" aria-label="Soft drink bottle"><defs><linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#9a1b1b"/></linearGradient><clipPath id="cs"><path d="M64 22h32v26c0 14 22 24 22 52 0 20-10 28-10 50s10 34 10 60c0 26-14 40-48 40s-48-14-48-40c0-26 10-38 10-60s-10-30-10-50c0-28 22-38 22-52z"/></clipPath></defs><path d="M64 22h32v26c0 14 22 24 22 52 0 20-10 28-10 50s10 34 10 60c0 26-14 40-48 40s-48-14-48-40c0-26 10-38 10-60s-10-30-10-50c0-28 22-38 22-52z" fill="#fff7ed" stroke="#fdba74" stroke-width="3"/><g clip-path="url(#cs)"><g class="wv"><path d="M-200 90q50-18 100 0t100 0t100 0t100 0V300H-200Z" fill="url(#gw)"/></g><circle class="bb" cx="60" cy="270" r="5" fill="#fff" opacity=".8"/><circle class="bb" cx="85" cy="260" r="4" fill="#fff" opacity=".8"/><circle class="bb" cx="100" cy="275" r="6" fill="#fff" opacity=".8"/><circle class="bb" cx="75" cy="285" r="3" fill="#fff" opacity=".8"/></g><rect x="60" y="6" width="40" height="18" rx="5" fill="#1f2937"/><rect x="40" y="170" width="80" height="50" rx="8" fill="#fff" opacity=".9"/><text x="80" y="202" text-anchor="middle" fill="#9a1b1b" font-size="18" font-weight="800">FRESH</text></svg>`,
-  carton: `<svg viewBox="0 0 240 230" role="img" aria-label="Carton"><polygon points="120,34 214,80 120,126 26,80" fill="#fcd34d"/><polygon points="26,80 120,126 120,222 26,174" fill="#f59e0b"/><polygon points="120,126 214,80 214,174 120,222" fill="#d97706"/><polygon points="108,40 132,52 132,128 108,116" fill="rgba(255,255,255,.55)" transform="rotate(-27 120 80) translate(-6 0)"/><text x="72" y="160" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" transform="rotate(25 72 160)">HAM</text><text x="168" y="160" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" transform="rotate(-25 168 160)">STORE</text><circle class="bb" cx="120" cy="60" r="4" fill="#fff" opacity=".9"/></svg>`,
-  import: `<svg viewBox="0 0 200 260" role="img" aria-label="Can"><defs><linearGradient id="gc" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1d4ed8"/><stop offset=".35" stop-color="#60a5fa"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient></defs><rect x="55" y="34" width="90" height="190" rx="16" fill="url(#gc)"/><ellipse cx="100" cy="34" rx="45" ry="10" fill="#cbd5e1"/><ellipse cx="100" cy="224" rx="45" ry="9" fill="#94a3b8"/><rect x="66" y="48" width="10" height="160" rx="5" fill="rgba(255,255,255,.4)"/><path d="M55 120q45 24 90 0v40q-45 24-90 0z" fill="#fff" opacity=".9"/><text x="100" y="146" text-anchor="middle" fill="#1e3a8a" font-size="16" font-weight="800">COLD</text><circle class="bb" cx="90" cy="200" r="4" fill="#fff" opacity=".8"/><circle class="bb" cx="115" cy="190" r="5" fill="#fff" opacity=".8"/></svg>`
-};
-const RANGE = [["sachet", "fa-droplet", "r.sachet", "r.sachet.p"], ["bottle", "fa-bottle-water", "r.bottle", "r.bottle.p"], ["soda", "fa-wine-bottle", "r.soda", "r.soda.p"], ["carton", "fa-box-open", "r.carton", "r.carton.p"], ["import", "fa-earth-africa", "r.import", "r.import.p"]];
+/* Range tabs: real product photos only (no "Imported" tab) */
+const RANGE = [["sachet", "r.sachet", "r.sachet.p"], ["bottle", "r.bottle", "r.bottle.p"], ["soda", "r.soda", "r.soda.p"], ["carton", "r.carton", "r.carton.p"]];
 let rangeKey = "sachet";
 let statsDone = false;
 
 function renderRange(swap) {
-  $("rTabs").innerHTML = RANGE.map(([k, ic, name]) => `<button class="rtab" type="button" role="tab" data-k="${k}" aria-selected="${k === rangeKey}"><i class="fa-solid ${ic}"></i>${esc(t(name))}</button>`).join("");
+  if (!RANGE.some(r => r[0] === rangeKey)) rangeKey = RANGE[0][0];
+  $("rTabs").innerHTML = RANGE.map(([k, name]) => `<button class="rtab" type="button" role="tab" data-k="${k}" aria-selected="${k === rangeKey}"><img class="ti" src="${IMG[k]}" alt="" loading="lazy" decoding="async">${esc(t(name))}</button>`).join("");
   const cur = RANGE.find(r => r[0] === rangeKey) || RANGE[0];
-  $("rIll").innerHTML = SVG[cur[0]];
-  $("rTitle").textContent = t(cur[2]);
-  $("rText").textContent = t(cur[3]);
+  $("rIll").innerHTML = `<img class="fx" src="${IMG[cur[0]]}" alt="${esc(t(cur[1]))}" decoding="async">`;
+  $("rTitle").textContent = t(cur[1]);
+  $("rText").textContent = t(cur[2]);
   if (swap) {
     const st = $("rStage");
     st.classList.remove("swap");
@@ -760,8 +764,8 @@ $("rTabs").addEventListener("click", e => {
 $("rCta").addEventListener("click", () => openReport(""));
 
 function renderTicker() {
-  const items = [["fa-bottle-water", "tk.1"], ["fa-droplet", "tk.2"], ["fa-wine-bottle", "tk.3"], ["fa-house", "tk.4"], ["fa-earth-africa", "tk.5"], ["fa-box-open", "tk.6"], ["fa-store", "tk.7"]];
-  const one = items.map(([i, k]) => `<span><i class="fa-solid ${i}"></i>${esc(t(k))}</span>`).join("");
+  const items = [[IMG.bottle, "tk.1"], [IMG.sachet, "tk.2"], [IMG.soda, "tk.3"], ["fa-house", "tk.4"], [IMG.carton, "tk.6"], ["fa-store", "tk.7"]];
+  const one = items.map(([i, k]) => `<span>${i.indexOf("http") === 0 ? `<img class="tkimg" src="${i}" alt="" loading="lazy" decoding="async">` : `<i class="fa-solid ${i}"></i>`}${esc(t(k))}</span>`).join("");
   const half = one + one;
   $("tkTrack").innerHTML = half + half;
 }
