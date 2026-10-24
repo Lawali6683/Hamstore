@@ -1,24 +1,24 @@
-const DB_URL = "https://hamstore-751c1-default-rtdb.firebaseio.com";
-const SCOPE = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
+const SB_URL = "https://eqbrczrlxwffvizjcdvu.supabase.co";
 
 const reply = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
-const b64url = input => {
-  const bytes = typeof input === "string" ? new TextEncoder().encode(input) : new Uint8Array(input);
-  let s = "";
-  bytes.forEach(b => (s += String.fromCharCode(b)));
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const sbHeaders = (env, extra = {}) => {
+  const k = env.SUPABASE_API_KEY;
+  const h = { apikey: k, "Content-Type": "application/json", ...extra };
+  if (k.startsWith("eyJ")) h.Authorization = `Bearer ${k}`;
+  return h;
 };
 
-const fromB64u = text => {
-  let s = text.replace(/-/g, "+").replace(/_/g, "/");
-  while (s.length % 4) s += "=";
-  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
-};
+async function db(env, path, init = {}) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, { ...init, headers: sbHeaders(env, init.headers) });
+  if (!res.ok) throw new Error(`db ${res.status} ${await res.text()}`);
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
 
 const same = (a, b) => {
   a = String(a || "");
@@ -28,55 +28,6 @@ const same = (a, b) => {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 };
-
-const serviceAccount = env => {
-  const sa = JSON.parse(env.FIREBASE_SERVICE_KEY);
-  sa.private_key = String(sa.private_key || "").replace(/\\n/g, "\n");
-  return sa;
-};
-
-let cached = { token: null, exp: 0 };
-
-async function getAccessToken(env) {
-  if (cached.token && Date.now() < cached.exp - 60000) return cached.token;
-  const sa = serviceAccount(env);
-  const now = Math.floor(Date.now() / 1000);
-  const head = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const body = b64url(JSON.stringify({
-    iss: sa.client_email,
-    scope: SCOPE,
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600
-  }));
-  const pem = sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-  const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
-  const key = await crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(head + "." + body));
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: head + "." + body + "." + b64url(sig)
-    })
-  });
-  const json = await res.json();
-  if (!json.access_token) throw new Error("token " + (json.error || ""));
-  cached = { token: json.access_token, exp: Date.now() + (json.expires_in || 3600) * 1000 };
-  return cached.token;
-}
-
-async function rt(env, method, path, body) {
-  const token = await getAccessToken(env);
-  const res = await fetch(`${DB_URL}/${path}.json`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  if (!res.ok) throw new Error("db " + res.status);
-  return res.json();
-}
 
 const num = v => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
@@ -102,25 +53,40 @@ export async function onRequestPost({ request, env }) {
   if (!/^VEH\d{4,}$/.test(id) || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return reply({ ok: false }, 400);
   }
-  if (!env.FIREBASE_SERVICE_KEY) return reply({ ok: false }, 500);
+  if (!env.SUPABASE_API_KEY) return reply({ ok: false }, 500);
 
   try {
-    const token = await getAccessToken(env);
-    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-    const vehicle = await fetch(`${DB_URL}/vehicles/${id}.json`, { headers }).then(r => r.json());
-    if (!vehicle || !same(vehicle.key, input.key)) return reply({ ok: false }, 401);
+    const veh = await db(env, `vehicles?select=key&id=eq.${id}`);
+    if (!veh || !veh.length || !same(veh[0].key, input.key)) return reply({ ok: false }, 401);
 
-    const prev = await fetch(`${DB_URL}/tracking/${id}.json`, { headers }).then(r => r.json());
+    const prevRows = await db(env, `tracking?select=lat,lng,ts&vehicle_id=eq.${id}`);
+    const prev = prevRows && prevRows[0];
     const now = Date.now();
-    const rec = { lat, lng, speed, ts: now };
+
     const head = num(input.head);
     const bat = num(input.bat);
-    if (head !== null) rec.head = Math.round(head) % 360;
-    if (bat !== null) rec.bat = Math.max(0, Math.min(100, Math.round(bat)));
-    await fetch(`${DB_URL}/tracking/${id}.json`, { method: "PUT", headers, body: JSON.stringify(rec) });
+    const rec = {
+      vehicle_id: id,
+      lat,
+      lng,
+      speed,
+      ts: now,
+      head: head !== null ? Math.round(head) % 360 : null,
+      bat: bat !== null ? Math.max(0, Math.min(100, Math.round(bat))) : null,
+    };
 
-    if (!prev || distanceKm(prev, { lat, lng }) > 0.02 || now - prev.ts > 60000) {
-      await fetch(`${DB_URL}/trails/${id}.json`, { method: "POST", headers, body: JSON.stringify({ lat, lng, t: now }) });
+    await db(env, "tracking?on_conflict=vehicle_id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(rec),
+    });
+
+    if (!prev || distanceKm(prev, { lat, lng }) > 0.02 || now - Number(prev.ts) > 60000) {
+      await db(env, "trails", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ vehicle_id: id, lat, lng, t: now }),
+      });
     }
     return reply({ ok: true });
   } catch (e) {
