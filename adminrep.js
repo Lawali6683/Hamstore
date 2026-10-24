@@ -1,20 +1,17 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, get, push, update, remove, query, orderByChild, limitToLast, endBefore, startAt, onChildAdded } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
 import { toast, confirmBox, openModal, loadMap, tiles, dot, nearest, telHref, esc, ago } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const db = getDatabase(app);
 await requireAdmin("rep");
 
 const PAGE = 12;
 const $ = id => document.getElementById(id);
 const items = new Map();
 const branches = [];
-let lastKey = null;
-let lastTime = null;
 let done = false;
 let busy = false;
+let fetched = 0;
 let filter = "new";
 
 const KINDS = {
@@ -23,19 +20,18 @@ const KINDS = {
   message: ["fa-message", "Message"]
 };
 
+
+const norm = r => ({
+  ...r,
+  createdAt: Number(r.created_at) || 0,
+  branchName: r.branch_name,
+  branchId: r.branch_id
+});
+
 async function fetchPage() {
-  const base = ref(db, "requests");
-  const q = lastKey === null
-    ? query(base, orderByChild("createdAt"), limitToLast(PAGE))
-    : query(base, orderByChild("createdAt"), endBefore(lastTime, lastKey), limitToLast(PAGE));
-  const snap = await get(q);
-  const rows = [];
-  snap.forEach(c => { rows.push({ id: c.key, ...c.val() }); });
-  rows.sort((a, b) => b.createdAt - a.createdAt);
-  if (rows.length) {
-    lastKey = rows[rows.length - 1].id;
-    lastTime = rows[rows.length - 1].createdAt;
-  }
+  const from = fetched;
+  const rows = (must(await supabase.from("requests").select("*").order("created_at", { ascending: false }).range(from, from + PAGE - 1)) || []).map(norm);
+  fetched += rows.length;
   if (rows.length < PAGE) done = true;
   return rows;
 }
@@ -123,10 +119,11 @@ $("list").addEventListener("click", async e => {
   if (!btn) return;
   const id = btn.closest(".req").dataset.id;
   const r = items.get(id);
+  if (!r) return;
   if (btn.dataset.act === "map") return showMap(r);
   if (btn.dataset.act === "voice") {
     try {
-      const v = (await get(ref(db, "voices/" + id))).val();
+      const v = must(await supabase.from("voices").select("data").eq("request_id", id).maybeSingle());
       if (!v || !v.data) return toast("error", "No voice note", "The voice note was not found.");
       const box = document.createElement("div");
       box.innerHTML = `<h3>${esc(r.name)}</h3><audio controls autoplay style="width:100%"></audio><div class="row" style="margin-top:12px"><button class="ghost" type="button">Close</button></div>`;
@@ -141,7 +138,8 @@ $("list").addEventListener("click", async e => {
   if (btn.dataset.act === "done") {
     const status = r.status === "done" ? "new" : "done";
     try {
-      await update(ref(db, "requests/" + id), { status });
+      const rows = must(await supabase.from("requests").update({ status }).eq("id", id).select("id"));
+      if (!rows || !rows.length) throw new Error("denied");
       r.status = status;
       render();
     } catch (err) {
@@ -151,7 +149,8 @@ $("list").addEventListener("click", async e => {
   if (btn.dataset.act === "del") {
     if (!(await confirmBox({ title: "Delete this request?", text: "This cannot be undone.", okText: "Delete", danger: true }))) return;
     try {
-      await remove(ref(db, "requests/" + id));
+      const rows = must(await supabase.from("requests").delete().eq("id", id).select("id"));
+      if (!rows || !rows.length) throw new Error("denied");
       items.delete(id);
       render();
       toast("success", "Deleted", "The request was removed.");
@@ -171,10 +170,14 @@ $("settings").onclick = async () => {
   box.querySelector("#pClose").onclick = close;
   const holder = box.querySelector("#phones");
   const draw = async () => {
-    const snap = await get(ref(db, "settings/phones"));
+    let rows = [];
+    try {
+      rows = must(await supabase.from("phones").select("*").order("created_at", { ascending: true })) || [];
+    } catch (err) {
+      toast("error", "Could not load numbers", "Check your internet and try again.");
+    }
     holder.innerHTML = "";
-    snap.forEach(c => {
-      const v = c.val();
+    rows.forEach(v => {
       const row = document.createElement("div");
       row.className = "ph";
       row.innerHTML = `<span><b></b><br><span class="meta"></span></span><button class="ibtn del" type="button" aria-label="Remove"><i class="fa-solid fa-trash"></i></button>`;
@@ -183,7 +186,8 @@ $("settings").onclick = async () => {
       row.querySelector("button").onclick = async () => {
         if (!(await confirmBox({ title: "Remove this number?", text: v.number, okText: "Remove", danger: true }))) return;
         try {
-          await remove(ref(db, "settings/phones/" + c.key));
+          const del = must(await supabase.from("phones").delete().eq("id", v.id).select("id"));
+          if (!del || !del.length) throw new Error("denied");
           draw();
         } catch (err) {
           toast("error", "Could not remove", "You may not have permission.");
@@ -198,7 +202,7 @@ $("settings").onclick = async () => {
     const number = box.querySelector("#pNum").value.trim();
     if (!label || !/^[0-9+\s-]{7,20}$/.test(number)) return toast("error", "Check details", "Enter a label and a valid number.");
     try {
-      await push(ref(db, "settings/phones"), { label, number });
+      must(await supabase.from("phones").insert({ label, number }));
       box.querySelector("#pLabel").value = "";
       box.querySelector("#pNum").value = "";
       toast("success", "Saved", number + " was added.");
@@ -211,16 +215,21 @@ $("settings").onclick = async () => {
 
 showLoading("Loading requests...");
 try {
-  const snap = await get(query(ref(db, "branches"), orderByChild("createdAt"), limitToLast(200)));
-  snap.forEach(c => { branches.push({ id: c.key, ...c.val() }); });
+  const rows = must(await supabase.from("branches").select("*").order("created_at", { ascending: false }).limit(200)) || [];
+  rows.forEach(b => { if (typeof b.lat === "number" && typeof b.lng === "number") branches.push(b); });
 } catch (e) {}
 await loadMore();
 hideLoading();
 
-onChildAdded(query(ref(db, "requests"), orderByChild("createdAt"), startAt(Date.now())), snap => {
-  if (items.has(snap.key)) return;
-  const r = { id: snap.key, ...snap.val() };
-  items.set(r.id, r);
-  render();
-  toast("success", "New " + (KINDS[r.kind] || KINDS.message)[1].toLowerCase(), r.name + " · " + r.phone, 8000);
-});
+
+supabase
+  .channel("requests-new")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "requests" }, payload => {
+    const row = payload.new;
+    if (!row || items.has(row.id)) return;
+    const r = norm(row);
+    items.set(r.id, r);
+    render();
+    toast("success", "New " + (KINDS[r.kind] || KINDS.message)[1].toLowerCase(), r.name + " · " + r.phone, 8000);
+  })
+  .subscribe();
