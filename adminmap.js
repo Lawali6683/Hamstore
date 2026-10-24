@@ -1,11 +1,9 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, get, onValue, query, limitToLast } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
 import { toast, openModal, loadMap, tiles, km, telHref, esc, ago } from "./allui.js";
 import { liveMarker, savePoint, loadPoints, prunePoints, fmtDur, bearing } from "./ui2.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const db = getDatabase(app);
 await requireAdmin("map");
 
 const $ = id => document.getElementById(id);
@@ -159,8 +157,8 @@ async function openHistory(id) {
     const local = await loadPoints(id);
     let server = [];
     try {
-      const snap = await get(query(ref(db, "trails/" + id), limitToLast(1500)));
-      snap.forEach(c => { server.push({ lat: c.val().lat, lng: c.val().lng, ts: c.val().t }); });
+      const rows = must(await supabase.from("trails").select("lat,lng,t").eq("vehicle_id", id).order("t", { ascending: false }).limit(1500)) || [];
+      server = rows.map(r => ({ lat: r.lat, lng: r.lng, ts: Number(r.t) }));
     } catch (e) {}
     points = [...local, ...server].sort((a, b) => a.ts - b.ts).filter((p, i, a) => i === 0 || Math.abs(p.ts - a[i - 1].ts) > 3000);
     points.forEach((p, i) => {
@@ -318,10 +316,28 @@ async function openHistory(id) {
   }
 }
 
-showLoading("Loading fleet...");
-onValue(ref(db, "vehicles"), snap => {
+/* ---------- SUPABASE: vehicles + tracking ---------- */
+const normVehicle = r => ({ ...r, driverName: r.driver_name });
+const normTracking = r => ({
+  lat: Number(r.lat),
+  lng: Number(r.lng),
+  speed: Number(r.speed) || 0,
+  head: typeof r.head === "number" ? r.head : null,
+  bat: typeof r.bat === "number" ? r.bat : null,
+  ts: Number(r.ts) || 0
+});
+
+function fitOnce() {
+  if (!fitted && markers.size) {
+    fitted = true;
+    map.fitBounds(L.featureGroup([...markers.values()].map(m => m.marker)).getBounds().pad(0.3), { maxZoom: 15 });
+  }
+}
+
+async function loadVehicles() {
+  const rows = must(await supabase.from("vehicles").select("id,name,plate,driver_name,phone")) || [];
   const ids = new Set();
-  snap.forEach(c => { ids.add(c.key); vehicles.set(c.key, { id: c.key, ...c.val() }); });
+  rows.forEach(r => { ids.add(r.id); vehicles.set(r.id, normVehicle(r)); });
   [...vehicles.keys()].forEach(id => {
     if (ids.has(id)) return;
     vehicles.delete(id);
@@ -330,21 +346,42 @@ onValue(ref(db, "vehicles"), snap => {
   Object.keys(live).forEach(id => { if (vehicles.has(id) && !markers.has(id)) onTracking(id, live[id]); });
   drawList();
   drawDetail();
-  hideLoading();
-}, () => {
-  hideLoading();
-  toast("error", "Could not load vehicles", "Check your internet and try again.");
-});
+}
 
-onValue(ref(db, "tracking"), snap => {
-  snap.forEach(c => onTracking(c.key, c.val()));
+async function loadTracking() {
+  const rows = must(await supabase.from("tracking").select("*")) || [];
+  rows.forEach(r => onTracking(r.vehicle_id, normTracking(r)));
   drawList();
   drawDetail();
-  if (!fitted && markers.size) {
-    fitted = true;
-    map.fitBounds(L.featureGroup([...markers.values()].map(m => m.marker)).getBounds().pad(0.3), { maxZoom: 15 });
-  }
-});
+  fitOnce();
+}
+
+showLoading("Loading fleet...");
+try {
+  await loadVehicles();
+  await loadTracking();
+} catch (e) {
+  toast("error", "Could not load vehicles", "Check your internet and try again.");
+}
+hideLoading();
+
+// Kai tsaye (Realtime)
+supabase
+  .channel("fleet-vehicles")
+  .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, () => { loadVehicles().catch(() => {}); })
+  .subscribe();
+
+supabase
+  .channel("fleet-tracking")
+  .on("postgres_changes", { event: "*", schema: "public", table: "tracking" }, payload => {
+    const r = payload.new;
+    if (!r || !r.vehicle_id) return;
+    onTracking(r.vehicle_id, normTracking(r));
+    drawList();
+    drawDetail();
+    fitOnce();
+  })
+  .subscribe();
 
 setInterval(() => {
   [...markers.keys()].forEach(refreshMarker);
