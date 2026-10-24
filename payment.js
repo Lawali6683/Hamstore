@@ -1,15 +1,21 @@
-import { app } from "./firebase.js";
-import { getDatabase, ref, get, push, update, remove, query, orderByChild, limitToLast, startAt, onChildAdded } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
 import { toast, confirmBox, openModal, esc, naira, ago, telHref } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
-const db = getDatabase(app);
 await requireAdmin("pay");
 
 const $ = id => document.getElementById(id);
 const items = new Map();
 let tab = "pending";
+
+
+const norm = r => ({
+  ...r,
+  createdAt: Number(r.created_at),
+  total: Number(r.total) || 0,
+  items: Array.isArray(r.items) ? r.items : []
+});
 
 function stats() {
   let p = 0, pt = 0, d = 0, dt = 0;
@@ -56,6 +62,7 @@ $("list").addEventListener("click", async e => {
   if (!btn) return;
   const id = btn.closest(".req").dataset.id;
   const o = items.get(id);
+  if (!o) return;
   if (btn.dataset.act === "shot") {
     const box = document.createElement("div");
     box.innerHTML = `<h3>${esc(o.code)}</h3><img class="vimg" alt="Payment screenshot" style="max-height:70vh;object-fit:contain"><div class="row"><a class="ghost" target="_blank" rel="noopener">Open full size</a><button class="btn" type="button">Close</button></div>`;
@@ -67,7 +74,9 @@ $("list").addEventListener("click", async e => {
   if (btn.dataset.act === "done") {
     const status = o.status === "done" ? "pending" : "done";
     try {
-      await update(ref(db, "payments/" + id), { status });
+      
+      const rows = must(await supabase.from("payments").update({ status }).eq("id", id).select("id"));
+      if (!rows || !rows.length) throw new Error("denied");
       o.status = status;
       render();
       toast("success", status === "done" ? "Completed" : "Reopened", o.code);
@@ -78,7 +87,8 @@ $("list").addEventListener("click", async e => {
   if (btn.dataset.act === "del") {
     if (!(await confirmBox({ title: "Delete this payment?", text: o.code + " will be removed for good.", okText: "Delete", danger: true }))) return;
     try {
-      await remove(ref(db, "payments/" + id));
+      const rows = must(await supabase.from("payments").delete().eq("id", id).select("id"));
+      if (!rows || !rows.length) throw new Error("denied");
       items.delete(id);
       render();
       toast("success", "Deleted", o.code);
@@ -99,10 +109,14 @@ $("accounts").onclick = async () => {
   box.querySelector("#aClose").onclick = close;
   const holder = box.querySelector("#aList");
   const draw = async () => {
-    const snap = await get(ref(db, "settings/payment"));
+    let rows = [];
+    try {
+      rows = must(await supabase.from("payment_accounts").select("*").order("created_at", { ascending: true })) || [];
+    } catch (err) {
+      toast("error", "Could not load accounts", "Check your internet and try again.");
+    }
     holder.innerHTML = "";
-    snap.forEach(c => {
-      const v = c.val();
+    rows.forEach(v => {
       const row = document.createElement("div");
       row.className = "ph";
       row.innerHTML = `<span><b></b><br><span class="meta"></span></span><button class="ibtn del" type="button" aria-label="Remove"><i class="fa-solid fa-trash"></i></button>`;
@@ -110,7 +124,13 @@ $("accounts").onclick = async () => {
       row.querySelector(".meta").textContent = v.bank + " · " + v.name;
       row.querySelector("button").onclick = async () => {
         if (!(await confirmBox({ title: "Remove this account?", text: v.number, okText: "Remove", danger: true }))) return;
-        try { await remove(ref(db, "settings/payment/" + c.key)); draw(); } catch (err) { toast("error", "Could not remove", "You may not have permission."); }
+        try {
+          const del = must(await supabase.from("payment_accounts").delete().eq("id", v.id).select("id"));
+          if (!del || !del.length) throw new Error("denied");
+          draw();
+        } catch (err) {
+          toast("error", "Could not remove", "You may not have permission.");
+        }
       };
       holder.appendChild(row);
     });
@@ -122,7 +142,7 @@ $("accounts").onclick = async () => {
     const number = box.querySelector("#aNum").value.trim();
     if (bank.length < 2 || name.length < 2 || !/^[0-9]{6,20}$/.test(number)) return toast("error", "Check details", "Enter the bank, the account name and a valid number.");
     try {
-      await push(ref(db, "settings/payment"), { bank, name, number });
+      must(await supabase.from("payment_accounts").insert({ bank, name, number }));
       ["#aBank", "#aName", "#aNum"].forEach(s => { box.querySelector(s).value = ""; });
       toast("success", "Saved", number);
       draw();
@@ -134,18 +154,23 @@ $("accounts").onclick = async () => {
 
 showLoading("Loading payments...");
 try {
-  const snap = await get(query(ref(db, "payments"), orderByChild("createdAt"), limitToLast(200)));
-  snap.forEach(c => { items.set(c.key, { id: c.key, ...c.val() }); });
+  const rows = must(await supabase.from("payments").select("*").order("created_at", { ascending: false }).limit(200)) || [];
+  rows.forEach(r => { items.set(r.id, norm(r)); });
 } catch (e) {
   toast("error", "Could not load payments", "Check your internet and try again.");
 }
 render();
 hideLoading();
 
-onChildAdded(query(ref(db, "payments"), orderByChild("createdAt"), startAt(Date.now())), snap => {
-  if (items.has(snap.key)) return;
-  const o = { id: snap.key, ...snap.val() };
-  items.set(o.id, o);
-  render();
-  toast("success", "New payment", o.name + " · " + naira(o.total), 9000);
-});
+
+supabase
+  .channel("payments-new")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "payments" }, payload => {
+    const r = payload.new;
+    if (!r || items.has(r.id)) return;
+    const o = norm(r);
+    items.set(o.id, o);
+    render();
+    toast("success", "New payment", o.name + " · " + naira(o.total), 9000);
+  })
+  .subscribe();
