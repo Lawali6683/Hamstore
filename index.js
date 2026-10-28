@@ -2,17 +2,17 @@ import { supabase, must } from "./supabase.js";
 import { showLoading, hideLoading } from "./loading.js";
 import { t, getLang, initLang, esc, naira, telHref, thumb, toast, km, branchStatus, loadMap, tiles, setDevice, approxLocation } from "./pub.js";
 
-const missing = [];
 const ghosts = {};
 const $ = id => {
   const el = document.getElementById(id);
   if (el) return el;
-  if (!ghosts[id]) { ghosts[id] = document.createElement("div"); missing.push(id); }
+  if (!ghosts[id]) { ghosts[id] = document.createElement("div"); console.error("Missing element id:", id); }
   return ghosts[id];
 };
+
 const LIMIT = 60;
 const MORE = 24;
-
+const BUCKET = "Audio_url";
 
 const IMG = {
   sachet: "https://i.imgur.com/gh63h20.png",
@@ -20,6 +20,22 @@ const IMG = {
   soda: "https://i.imgur.com/n9hXIkG.png",
   carton: "https://i.imgur.com/MX49i4K.png"
 };
+
+const X = {
+  en: {
+    search: "Search products", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
+    pick: "Choose a product, type how many cartons, and watch your total grow before you pay.",
+    upl: "Uploading your report...", upfail: "Could not upload the voice note. Try again.",
+    addr: "Your address", voice: "Voice note", ip: "IP address", sent: "Sent", noaddr: "Not available", live: "LIVE", closed: "SHOP CLOSED"
+  },
+  ha: {
+    search: "Nemi kaya", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
+    pick: "Zaɓi kaya, rubuta yawan kwali, ka ga jimlar kuɗi tana ƙaruwa kafin ka biya.",
+    upl: "Ana aika rahotonka...", upfail: "An kasa loda saƙon murya. Sake gwadawa.",
+    addr: "Adireshinka", voice: "Saƙon murya", ip: "IP ɗinka", sent: "An aika", noaddr: "Babu", live: "KAI TSAYE", closed: "SHAGO A RUFE"
+  }
+};
+const x = k => (X[getLang()] || X.en)[k] ?? k;
 
 let posts = [];
 let branches = [];
@@ -29,13 +45,17 @@ let older = { more: false };
 let spotIdx = 0;
 let spotTimer = 0;
 let busyMore = false;
-
+let tab = "all";
+let query = "";
+let shopOpen = true;
+let userLoc = null;
+let nearestId = "";
+const dmap = {};
 
 const normPost = r => ({ ...r, price: Number(r.price) || 0, createdAt: Number(r.created_at) || 0 });
 const normBranch = r => ({ ...r, createdAt: Number(r.created_at) || 0 });
-
-
 const unitLabel = () => t("cart.carton");
+const isWater = p => p.category === "Water";
 
 function loadCart() {
   try {
@@ -49,27 +69,53 @@ function loadCart() {
 }
 const saveCart = () => { try { localStorage.setItem("hs_cart", JSON.stringify(cart)); } catch (e) {} };
 
-function qboxInner(id) {
+const lineText = s => `${s.q} × ${naira(s.p)} = <b>${naira(s.p * s.q)}</b>`;
+
+function ctlHTML(id) {
+  if (!shopOpen) return `<span class="lockd"><i class="fa-solid fa-lock"></i>${esc(t("card.visit"))}</span>`;
   const s = cart[id];
-  if (!s) return "";
-  return `<button class="qb" type="button" data-q="${esc(id)}" aria-label="Quantity">${s.q}</button><small>${esc(unitLabel(s.u))} · ${esc(t("cart.line", { p: naira(s.p), q: s.q, s: naira(s.p * s.q) }))}</small>`;
+  if (!s) return `<button class="add" type="button" data-add="${esc(id)}"><i class="fa-solid fa-plus"></i>${esc(x("add"))}</button>`;
+  return `<div class="stp"><button type="button" data-d="-1" data-id="${esc(id)}" aria-label="-">−</button><input type="text" inputmode="numeric" maxlength="3" value="${s.q}" data-qi="${esc(id)}" aria-label="Quantity"><button type="button" data-d="1" data-id="${esc(id)}" aria-label="+">+</button></div><div class="sub">${lineText(s)}</div>`;
 }
 
-function cardHTML(p, style) {
+function cardHTML(p) {
   const on = shopOpen && !!cart[p.id];
-  return `<article class="card c-${style}${on ? " sel" : ""}${shopOpen ? "" : " locked"}" data-id="${esc(p.id)}" tabindex="0" role="button" aria-pressed="${on}">
-    <div class="ph"><img loading="lazy" decoding="async" src="${esc(thumb(p.image, "m"))}" alt="${esc(p.name)}"><span class="tick"><i class="fa-solid fa-check"></i></span><div class="qbox">${qboxInner(p.id)}</div></div>
-    <div class="cb"><h3>${esc(p.name)}</h3><div class="pr">${naira(p.price)}</div><span class="un">${esc(unitLabel(p.unit))}</span>${shopOpen ? "" : `<span class="lockd"><i class="fa-solid fa-lock"></i>${esc(t("card.visit"))}</span>`}</div></article>`;
+  return `<article class="pc${on ? " sel" : ""}${shopOpen ? "" : " locked"}" data-id="${esc(p.id)}">
+    <div class="pimg"><img loading="lazy" decoding="async" src="${esc(thumb(p.image, "m"))}" alt="${esc(p.name)}"><span class="tag">${esc(unitLabel())}</span><span class="tick"><i class="fa-solid fa-check"></i></span></div>
+    <div class="pb"><h3>${esc(p.name)}</h3><div class="pp">${naira(p.price)}</div><div class="ctl">${ctlHTML(p.id)}</div></div></article>`;
 }
 
-function syncCards(id) {
-  document.querySelectorAll(`.card[data-id="${id}"]`).forEach(c => {
-    const on = !!cart[id];
+function syncCards(id, full = true) {
+  document.querySelectorAll(`.pc[data-id="${id}"]`).forEach(c => {
+    const on = !!cart[id] && shopOpen;
     c.classList.toggle("sel", on);
-    c.setAttribute("aria-pressed", String(on));
-    const q = c.querySelector(".qbox");
-    if (q) q.innerHTML = qboxInner(id);
+    if (full) {
+      c.querySelector(".ctl").innerHTML = ctlHTML(id);
+    } else {
+      const sub = c.querySelector(".sub");
+      if (sub && cart[id]) sub.innerHTML = lineText(cart[id]);
+    }
   });
+}
+
+let shownTotal = 0;
+let totalRaf = 0;
+function animateTotal(to) {
+  cancelAnimationFrame(totalRaf);
+  const from = shownTotal;
+  const t0 = performance.now();
+  const el = $("dTotal");
+  el.classList.remove("bump");
+  void el.offsetWidth;
+  el.classList.add("bump");
+  const step = ts => {
+    const k = Math.min(1, (ts - t0) / 450);
+    const v = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    el.textContent = naira(v);
+    if (k < 1) totalRaf = requestAnimationFrame(step);
+    else shownTotal = to;
+  };
+  totalRaf = requestAnimationFrame(step);
 }
 
 function renderDock() {
@@ -84,133 +130,126 @@ function renderDock() {
   dock.classList.toggle("on", ids.length > 0);
   document.body.classList.toggle("dockon", ids.length > 0);
   $("cartCount").textContent = ids.length || "";
-  if (!ids.length) { dock.classList.remove("open"); return; }
+  if (!ids.length) { dock.classList.remove("open"); shownTotal = 0; return; }
   let total = 0;
-  ids.forEach(id => { total += cart[id].p * cart[id].q; });
-  $("dCount").textContent = t("cart.sel", { n: ids.length });
-  $("dTotal").textContent = naira(total);
-  $("dMini").innerHTML = ids.map(id => `<div class="mini"><img src="${esc(thumb(cart[id].i, "t"))}" alt="${esc(cart[id].n)}"><b>${cart[id].q}</b></div>`).join("");
+  let cartons = 0;
+  ids.forEach(id => { total += cart[id].p * cart[id].q; cartons += cart[id].q; });
+  $("dCount").textContent = `${ids.length} · ${cartons} ${x("cartons")}`;
+  animateTotal(total);
+  $("dMini").innerHTML = ids.map(id => {
+    const s = cart[id];
+    return `<div class="dl"><img src="${esc(thumb(s.i, "t"))}" alt=""><span class="dn2">${esc(s.n)}</span><em>${s.q} × ${naira(s.p)}</em><b>${naira(s.p * s.q)}</b></div>`;
+  }).join("");
   $("dPay").href = "buy.html?items=" + encodeURIComponent(ids.map(id => id + ":" + cart[id].q).join(","));
 }
 
-function toggle(id) {
+function addItem(id) {
   if (!shopOpen) { showNearest(); return; }
-  const p = posts.find(x => x.id === id);
-  if (cart[id]) delete cart[id];
-  else if (p) cart[id] = { q: 1, n: p.name, p: p.price, u: "Carton", i: p.image };
+  const p = posts.find(z => z.id === id);
+  if (!p || cart[id]) return;
+  cart[id] = { q: 1, n: p.name, p: p.price, u: "Carton", i: p.image };
   saveCart();
   syncCards(id);
   renderDock();
 }
 
-function setQty(id, q) {
+function removeItem(id) {
+  delete cart[id];
+  saveCart();
+  syncCards(id);
+  renderDock();
+}
+
+function setQty(id, q, light) {
   if (!cart[id]) return;
-  cart[id].q = q;
+  cart[id].q = Math.max(1, Math.min(999, q));
   saveCart();
-  syncCards(id);
+  syncCards(id, !light);
   renderDock();
-}
-
-function editQty(btn) {
-  const id = btn.dataset.q;
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.inputMode = "numeric";
-  inp.maxLength = 3;
-  inp.value = cart[id].q;
-  btn.replaceWith(inp);
-  inp.focus();
-  inp.select();
-  let finished = false;
-  const done = () => {
-    if (finished) return;
-    finished = true;
-    const v = parseInt(inp.value, 10);
-    setQty(id, v >= 1 ? Math.min(999, v) : cart[id] ? cart[id].q : 1);
-  };
-  inp.addEventListener("input", () => { inp.value = inp.value.replace(/\D/g, ""); });
-  inp.addEventListener("blur", done);
-  inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); });
 }
 
 document.addEventListener("click", e => {
-  const qb = e.target.closest(".qb");
-  if (qb) { e.stopPropagation(); editQty(qb); return; }
-  if (e.target.closest(".qbox input")) return;
-  const card = e.target.closest(".card");
-  if (card) toggle(card.dataset.id);
-});
-document.addEventListener("keydown", e => {
-  if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("card")) {
-    e.preventDefault();
-    toggle(e.target.dataset.id);
+  const add = e.target.closest("[data-add]");
+  if (add) { addItem(add.dataset.add); return; }
+  const st = e.target.closest("[data-d]");
+  if (st) {
+    const id = st.dataset.id;
+    const next = (cart[id] ? cart[id].q : 0) + Number(st.dataset.d);
+    if (next < 1) removeItem(id);
+    else setQty(id, next, false);
+    return;
+  }
+  const img = e.target.closest(".pimg");
+  if (img) {
+    const card = img.closest(".pc");
+    if (card && !cart[card.dataset.id]) addItem(card.dataset.id);
   }
 });
 
-function autoScroll(el) {
-  let pos = 0, last = 0, paused = false, timer = 0, vis = false;
-  const hold = () => { paused = true; pos = el.scrollLeft; clearTimeout(timer); timer = setTimeout(() => { pos = el.scrollLeft; paused = false; }, 3500); };
-  ["pointerdown", "touchstart", "wheel", "keydown", "focusin"].forEach(ev => el.addEventListener(ev, hold, { passive: true }));
-  new IntersectionObserver(en => { vis = en[0].isIntersecting; }).observe(el);
-  const calm = matchMedia("(prefers-reduced-motion:reduce)").matches;
-  const tick = ts => {
-    if (vis && !paused && !calm && last) {
-      pos += (ts - last) * 0.045;
-      if (pos >= el.scrollWidth - el.clientWidth - 1) pos = 0;
-      el.scrollLeft = pos;
-    }
-    last = ts;
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
+document.addEventListener("input", e => {
+  const inp = e.target.closest("[data-qi]");
+  if (!inp) return;
+  inp.value = inp.value.replace(/\D/g, "").slice(0, 3);
+  const v = parseInt(inp.value, 10);
+  if (v >= 1) setQty(inp.dataset.qi, v, true);
+});
+
+document.addEventListener("focusout", e => {
+  const inp = e.target.closest && e.target.closest("[data-qi]");
+  if (!inp) return;
+  const id = inp.dataset.qi;
+  if (!cart[id]) return;
+  const v = parseInt(inp.value, 10);
+  if (!(v >= 1)) inp.value = cart[id].q;
+});
+
+function renderTabs() {
+  const nw = posts.filter(isWater).length;
+  const list = [["all", x("all"), posts.length], ["water", x("water"), nw], ["drinks", x("drinks"), posts.length - nw]];
+  $("catTabs").innerHTML = list.filter(([k, , n]) => k === "all" || n > 0).map(([k, name, n]) => `<button class="ctab" type="button" role="tab" data-k="${k}" aria-selected="${k === tab}">${esc(name)} <em>${n}</em></button>`).join("");
 }
 
-function renderPosts() {
-  const water = posts.filter(p => p.category === "Water");
-  const drinks = posts.filter(p => p.category !== "Water");
-  const n = drinks.length;
-  let i = 0;
-  const take = c => { const s = drinks.slice(i, i + c); i += c; return s; };
-  const mq = take(Math.min(12, Math.ceil(n * 0.4)));
-  const ps = take(Math.min(10, Math.ceil(n * 0.25)));
-  const tk = take(Math.min(8, Math.ceil(n * 0.2)));
-  const rest = drinks.slice(i);
+function filtered() {
+  const q = query.trim().toLowerCase();
+  return posts.filter(p => (tab === "all" || (tab === "water" ? isWater(p) : !isWater(p))) && (!q || String(p.name).toLowerCase().includes(q)));
+}
 
-  $("water").hidden = !water.length;
-  $("wGrid").innerHTML = water.map(p => cardHTML(p, "bubble")).join("");
-
-  $("drinks").hidden = !mq.length;
-  if (mq.length) {
-    const reps = Math.max(1, Math.ceil(6 / mq.length));
-    const half = Array.from({ length: reps }, () => mq.map(p => cardHTML(p, "glass")).join("")).join("");
-    $("mqTrack").innerHTML = half + half;
-    $("mqTrack").style.setProperty("--dur", Math.max(26, mq.length * reps * 6) + "s");
-  }
-
-  $("picks").hidden = !ps.length;
-  $("ps").innerHTML = ps.map(p => cardHTML(p, "pol")).join("");
-
-  $("deals").hidden = !tk.length;
-  $("tGrid").innerHTML = tk.map(p => cardHTML(p, "tick")).join("");
-
-  $("all").hidden = !rest.length;
-  $("mGrid").innerHTML = rest.map(p => cardHTML(p, "bento")).join("");
+function renderCatalog() {
+  $("catalog").hidden = !posts.length;
+  $("mCatalog").hidden = !posts.length;
+  $("catSearch").placeholder = x("search");
+  $("catSub").textContent = shopOpen ? x("pick") : t("drinks.sub.closed");
+  renderTabs();
+  const list = filtered();
+  $("catGrid").innerHTML = list.map(cardHTML).join("");
+  $("catEmpty").hidden = !!list.length;
+  $("catEmpty").textContent = x("none");
   $("moreBtn").hidden = !older.more;
-
-  $("mWater").hidden = !water.length;
-  $("mDrinks").hidden = !mq.length;
-  renderSpot();
+  observeReveal();
 }
+
+$("catTabs").addEventListener("click", e => {
+  const b = e.target.closest(".ctab");
+  if (!b) return;
+  tab = b.dataset.k;
+  renderCatalog();
+});
+$("catSearch").addEventListener("input", e => {
+  query = e.target.value;
+  const list = filtered();
+  $("catGrid").innerHTML = list.map(cardHTML).join("");
+  $("catEmpty").hidden = !!list.length;
+  $("catEmpty").textContent = x("none");
+});
 
 function branchCard(b) {
   const st = branchStatus(b);
   const ph = [b.phone, b.phone2, b.phone3].filter(Boolean);
   return `<article class="bc rv" data-id="${esc(b.id)}">
-    <div class="dev"><i class="led ${st || ""}"></i><span>${esc(b.id)}</span><span class="sg"><b></b><b></b><b></b><b></b></span></div>
     <div class="bi" data-a="view"><img loading="lazy" decoding="async" src="${esc(thumb(b.image, "l"))}" alt="${esc(b.name)}">${st ? `<span class="stt ${st}">${esc(t(st === "open" ? "br.open" : "br.closed"))}</span>` : ""}${b.id === nearestId ? `<span class="nearr"><i class="fa-solid fa-location-crosshairs"></i> ${esc(t("br.nearest"))}</span>` : ""}</div>
     <div class="bd"><h3 data-a="view">${esc(b.name)}</h3>${typeof dmap[b.id] === "number" ? `<p class="dist"><i class="fa-solid fa-route"></i> ${esc(t("br.away", { km: dmap[b.id].toFixed(1) }))}</p>` : ""}
       <p class="ad"><i class="fa-solid fa-location-dot"></i>${esc(b.address)}</p>
-      ${ph.length ? `<div class="phs">${ph.map(x => `<a href="${telHref(x)}"><i class="fa-solid fa-phone"></i>${esc(x)}</a>`).join("")}</div>` : ""}
+      ${ph.length ? `<div class="phs">${ph.map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("")}</div>` : ""}
       <div class="ac"><button class="m" type="button" data-a="map"><i class="fa-solid fa-map-location-dot"></i>${esc(t("br.map"))}</button><button class="r" type="button" data-a="report"><i class="fa-solid fa-microphone-lines"></i>${esc(t("br.report"))}</button></div>
     </div></article>`;
 }
@@ -245,8 +284,6 @@ function renderSpot() {
     $("spAd").textContent = b.address;
     $("spImgBox").dataset.id = b.id;
     $("spOpen").dataset.id = b.id;
-    const pool = posts.length ? [...posts].sort(() => Math.random() - 0.5).slice(0, 4) : [];
-    $("spChips").innerHTML = pool.map(p => cardHTML(p, "pill")).join("");
   };
   show();
   if (branches.length > 1) spotTimer = setInterval(() => { if (!document.hidden) { spotIdx++; show(); } }, 8000);
@@ -289,7 +326,7 @@ async function routeTo(a, b) {
 }
 
 async function openBranch(id) {
-  const b = branches.find(x => x.id === id);
+  const b = branches.find(z => z.id === id);
   if (!b) return;
   const ov = $("bv");
   $("bvTitle").textContent = b.name;
@@ -300,12 +337,11 @@ async function openBranch(id) {
   $("bvSt").className = "stt" + (st ? " " + st : "");
   $("bvSt").textContent = st ? t(st === "open" ? "br.open" : "br.closed") : "";
   $("bvHr").textContent = b.opens && b.closes ? t("br.hours", { o: b.opens, c: b.closes }) : "";
-  $("bvPh").innerHTML = [b.phone, b.phone2, b.phone3].filter(Boolean).map(x => `<a href="${telHref(x)}"><i class="fa-solid fa-phone"></i>${esc(x)}</a>`).join("");
+  $("bvPh").innerHTML = [b.phone, b.phone2, b.phone3].filter(Boolean).map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("");
   $("bvDir").href = `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}`;
   $("bvRep").dataset.id = b.id;
   $("bvMsg").textContent = t("bv.finding");
   $("bvSub").textContent = b.name;
-  $("bvTitle").scrollIntoView({ block: "nearest" });
   ov.querySelector(".ovbody").scrollTop = 0;
   ovOpen(ov);
 
@@ -328,7 +364,7 @@ async function openBranch(id) {
     const r = await routeTo(me, target);
     if (bvMap !== map) return;
     $("bvMsg").textContent = t("bv.dist", { km: r.km.toFixed(1), min: r.min });
-    const line = L.polyline([], { color: "#ffd166", weight: 6, opacity: 0.95, className: "route" }).addTo(map);
+    const line = L.polyline([], { color: "#e03a3a", weight: 6, opacity: 0.95, className: "route" }).addTo(map);
     const step = Math.max(1, Math.ceil(r.pts.length / 70));
     let k = 0;
     bvTimer = setInterval(() => {
@@ -351,11 +387,11 @@ $("bvRep").onclick = () => openReport($("bvRep").dataset.id);
 
 let rec = null, chunks = [], stream = null, blob = null, recT = 0, recS = 0, kind = "stock", where = null, rpBranch = "";
 
-function fmtT(s) { return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+const fmtT = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 
 function micReset() {
   clearInterval(recT);
-  if (stream) stream.getTracks().forEach(x => x.stop());
+  if (stream) stream.getTracks().forEach(z => z.stop());
   stream = null; rec = null; blob = null; chunks = [];
   $("mic").className = "mic";
   $("mic").innerHTML = '<i class="fa-solid fa-microphone"></i>';
@@ -372,18 +408,18 @@ async function startRec() {
   } catch (e) {
     return toast("error", t("e.mic"));
   }
-  const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find(x => window.MediaRecorder && MediaRecorder.isTypeSupported(x)) || "";
+  const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find(z => window.MediaRecorder && MediaRecorder.isTypeSupported(z)) || "";
   try {
-    rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 16000 });
+    rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 });
   } catch (e) {
-    stream.getTracks().forEach(x => x.stop());
+    stream.getTracks().forEach(z => z.stop());
     return toast("error", t("e.mic"));
   }
   chunks = [];
   rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   rec.onstop = () => {
     clearInterval(recT);
-    stream.getTracks().forEach(x => x.stop());
+    stream.getTracks().forEach(z => z.stop());
     blob = new Blob(chunks, { type: rec.mimeType || type || "audio/webm" });
     $("mic").className = "mic done";
     $("mic").innerHTML = '<i class="fa-solid fa-check"></i>';
@@ -400,7 +436,7 @@ async function startRec() {
   recT = setInterval(() => {
     recS++;
     $("micT").textContent = fmtT(recS);
-    if (recS >= 60) rec.stop();
+    if (recS >= 90) rec.stop();
   }, 1000);
 }
 
@@ -412,7 +448,7 @@ $("micR").onclick = () => { micReset(); startRec(); };
 
 $("rpTypes").querySelectorAll(".tp").forEach(b => b.onclick = () => {
   kind = b.dataset.k;
-  $("rpTypes").querySelectorAll(".tp").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  $("rpTypes").querySelectorAll(".tp").forEach(z => z.setAttribute("aria-pressed", String(z === b)));
 });
 
 function locText() {
@@ -432,7 +468,7 @@ $("rpLoc").onclick = () => {
 
 function openReport(branchId) {
   rpBranch = branchId || "";
-  const b = branches.find(x => x.id === rpBranch);
+  const b = branches.find(z => z.id === rpBranch);
   $("rpAt").hidden = !b;
   if (b) $("rpAt").textContent = t("rp.at", { b: b.name });
   $("rpForm").hidden = false;
@@ -444,7 +480,31 @@ $("rpBack").onclick = back;
 $("rp").addEventListener("ovclose", micReset);
 $("rpNew").onclick = () => { micReset(); $("rpText").value = ""; $("rpForm").hidden = false; $("rpOk").hidden = true; };
 
-const asDataUrl = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+async function uploadAudio(b) {
+  const mime = b.type || "audio/webm";
+  const ext = mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
+  const path = `${new Date().toISOString().slice(0, 10)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, b, { contentType: mime, upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function getAddress(lat, lng) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=${getLang()}`);
+    const j = await r.json();
+    return j.display_name || "";
+  } catch (e) { return ""; }
+}
+
+async function getIP() {
+  try {
+    const r = await fetch("https://api.ipify.org?format=json");
+    const j = await r.json();
+    return j.ip || "";
+  } catch (e) { return ""; }
+}
 
 $("rpSend").onclick = async () => {
   if (rec && rec.state === "recording") rec.stop();
@@ -453,23 +513,38 @@ $("rpSend").onclick = async () => {
   const message = $("rpText").value.trim();
   if (name.length < 2) return toast("error", t("e.name"));
   if (!/^[0-9+\s-]{7,20}$/.test(phone)) return toast("error", t("e.phone"));
-  await new Promise(r => setTimeout(r, 150));
+  await new Promise(r => setTimeout(r, 250));
   if (!message && !blob) return toast("error", t("e.empty"));
-  showLoading(t("rp.sending"));
+  showLoading(x("upl"));
   try {
-    const body = { name, phone, kind, message, branchId: rpBranch };
-    if (where) { body.lat = where.lat; body.lng = where.lng; }
-    if (blob) {
-      const data = await asDataUrl(blob);
-      if (data.length > 440000) { hideLoading(); return toast("error", t("e.long")); }
-      body.audio = data;
+    if (!where) { try { where = await getPos(8000); } catch (e) { where = null; } }
+    let audioUrl = "";
+    let address = "";
+    let ip = "";
+    try {
+      [audioUrl, address, ip] = await Promise.all([
+        blob ? uploadAudio(blob) : Promise.resolve(""),
+        where ? getAddress(where.lat, where.lng) : Promise.resolve(""),
+        getIP()
+      ]);
+    } catch (e) {
+      hideLoading();
+      return toast("error", x("upfail"));
     }
+    const body = { name, phone, kind, message, branchId: rpBranch, audioUrl, audio_url: audioUrl, address, ip };
+    if (where) { body.lat = where.lat; body.lng = where.lng; }
     const res = await fetch("/api/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json();
     if (j.ok) {
       $("rpRef").textContent = j.ref;
+      const rows = [];
+      if (audioUrl) rows.push(`<div><i class="fa-solid fa-microphone"></i><span>${esc(x("voice"))}</span><b>${esc(x("sent"))}</b></div>`);
+      rows.push(`<div><i class="fa-solid fa-location-dot"></i><span>${esc(x("addr"))}</span><b>${esc(address || x("noaddr"))}</b></div>`);
+      rows.push(`<div><i class="fa-solid fa-network-wired"></i><span>${esc(x("ip"))}</span><b>${esc(ip || x("noaddr"))}</b></div>`);
+      $("rpSum").innerHTML = rows.join("");
       $("rpForm").hidden = true;
       $("rpOk").hidden = false;
+      $("rpOk").scrollIntoView({ block: "start" });
       $("rpText").value = "";
       micReset();
     } else {
@@ -520,27 +595,28 @@ $("dClr").onclick = () => {
   const ids = Object.keys(cart);
   cart = {};
   saveCart();
-  ids.forEach(syncCards);
+  ids.forEach(id => syncCards(id));
   renderDock();
 };
 
 let io = null;
 function observeReveal() {
-  if (!io) io = new IntersectionObserver(en => en.forEach(x => { if (x.isIntersecting) { x.target.classList.add("in"); io.unobserve(x.target); } }), { rootMargin: "0px 0px -8% 0px" });
+  if (!io) io = new IntersectionObserver(en => en.forEach(z => { if (z.isIntersecting) { z.target.classList.add("in"); io.unobserve(z.target); } }), { rootMargin: "0px 0px -8% 0px" });
   document.querySelectorAll(".rv:not(.in)").forEach(el => io.observe(el));
 }
 
-new IntersectionObserver(en => en.forEach(x => x.target.classList.toggle("vis", x.isIntersecting)), { rootMargin: "120px" }).observe($("mq"));
-$("mq").addEventListener("pointerdown", () => $("mq").classList.add("touch"));
-let mqT = 0;
-["pointerup", "pointercancel"].forEach(ev => $("mq").addEventListener(ev, () => { clearTimeout(mqT); mqT = setTimeout(() => $("mq").classList.remove("touch"), 4000); }));
-
+function mergePosts(rows) {
+  const map = new Map(posts.map(p => [p.id, p]));
+  rows.forEach(p => { if (p && p.id && !map.has(p.id)) map.set(p.id, p); });
+  posts = [...map.values()];
+}
 
 async function loadPosts() {
   const rows = (must(await supabase.from("posts").select("*").order("created_at", { ascending: false }).range(0, LIMIT - 1)) || []).map(normPost);
-  posts = rows;
+  posts = [];
+  mergePosts(rows);
   older = { more: rows.length >= LIMIT };
-  rows.forEach(p => { if (cart[p.id]) Object.assign(cart[p.id], { n: p.name, p: p.price, u: "Carton", i: p.image }); });
+  posts.forEach(p => { if (cart[p.id]) Object.assign(cart[p.id], { n: p.name, p: p.price, u: "Carton", i: p.image }); });
   saveCart();
 }
 
@@ -551,15 +627,8 @@ async function loadMore() {
     const from = posts.length;
     const rows = (must(await supabase.from("posts").select("*").order("created_at", { ascending: false }).range(from, from + MORE - 1)) || []).map(normPost);
     older.more = rows.length >= MORE;
-    const known = new Set(posts.map(p => p.id));
-    const fresh = rows.filter(p => !known.has(p.id));
-    posts = posts.concat(fresh);
-    fresh.forEach(p => {
-      if (p.category === "Water") $("wGrid").insertAdjacentHTML("beforeend", cardHTML(p, "bubble"));
-      else $("mGrid").insertAdjacentHTML("beforeend", cardHTML(p, "bento"));
-    });
-    $("all").hidden = !$("mGrid").children.length;
-    $("moreBtn").hidden = !older.more;
+    mergePosts(rows);
+    renderCatalog();
   } catch (e) {
     toast("error", t("err.net"));
   } finally {
@@ -567,15 +636,12 @@ async function loadMore() {
   }
 }
 $("moreBtn").onclick = loadMore;
-new IntersectionObserver(en => { if (en[0].isIntersecting) loadMore(); }, { rootMargin: "400px" }).observe($("moreBtn"));
 
-/* ---------- SUPABASE: branches ---------- */
 async function loadBranches() {
   const rows = (must(await supabase.from("branches").select("*").order("created_at", { ascending: false }).limit(40)) || []).map(normBranch);
   branches = rows.filter(b => typeof b.lat === "number" && typeof b.lng === "number");
 }
 
-/* ---------- SUPABASE: phones ---------- */
 async function loadPhones() {
   const rows = must(await supabase.from("phones").select("*").order("created_at", { ascending: true })) || [];
   phones = rows.filter(p => p && p.number);
@@ -587,7 +653,7 @@ function renderAll() {
   shopUI();
   renderStatic();
   renderBranches();
-  renderPosts();
+  renderCatalog();
   renderDock();
   observeReveal();
 }
@@ -599,7 +665,8 @@ let rz = 0;
 addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(setDevice, 150); });
 let progTick = 0;
 addEventListener("scroll", () => {
-  $("hd").classList.toggle("solid", scrollY > 30);
+  $("hd").classList.toggle("solid", scrollY > 20);
+  $("toTop").classList.toggle("on", scrollY > 700);
   if (progTick) return;
   progTick = requestAnimationFrame(() => {
     progTick = 0;
@@ -607,18 +674,24 @@ addEventListener("scroll", () => {
     $("prog").style.transform = `scaleX(${h > 0 ? Math.min(1, scrollY / h) : 0})`;
   });
 }, { passive: true });
+$("toTop").addEventListener("click", () => scrollTo({ top: 0, behavior: "smooth" }));
 $("yr").textContent = new Date().getFullYear();
 
+const hshow = $("hshow");
+const hcard = $("hcard");
+if (matchMedia("(hover:hover)").matches && !matchMedia("(prefers-reduced-motion:reduce)").matches) {
+  hshow.addEventListener("pointermove", e => {
+    const r = hshow.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    hcard.style.transform = `rotateY(${px * 10}deg) rotateX(${-py * 8}deg)`;
+  });
+  hshow.addEventListener("pointerleave", () => { hcard.style.transform = ""; });
+}
 
-
-let shopOpen = true;
-let userLoc = null;
-let nearestId = "";
-const dmap = {};
-
-const getPos = () => new Promise((res, rej) => {
+const getPos = (timeout = 12000) => new Promise((res, rej) => {
   if (!navigator.geolocation) return rej(new Error("none"));
-  navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), rej, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), rej, { enableHighAccuracy: true, timeout, maximumAge: 60000 });
 });
 
 async function locate(ask) {
@@ -654,9 +727,8 @@ function shopUI() {
   $("closedBar").hidden = shopOpen;
   $("mOrder").hidden = !shopOpen;
   $("cartBtn").hidden = !shopOpen;
-  const sub = $("drinksSub");
-  sub.dataset.i18n = shopOpen ? "drinks.sub" : "drinks.sub.closed";
-  sub.textContent = t(sub.dataset.i18n);
+  $("hLive").textContent = shopOpen ? x("live") : x("closed");
+  $("hcard").classList.toggle("off", !shopOpen);
 }
 
 function closeNearest() {
@@ -679,7 +751,7 @@ function renderNearest(loc) {
     <p class="ad"><i class="fa-solid fa-location-dot"></i>${esc(b.address)}</p>
     <div class="nbtags"><span class="nbd">${esc(t("nb.dist", { km: d.toFixed(1) }))}</span>${st ? `<span class="stt ${st}">${esc(t(st === "open" ? "br.open" : "br.closed"))}</span>` : ""}</div>
     ${loc.exact ? "" : `<p class="small">${esc(t("nb.approx"))}</p><button class="tp" id="nbExact" type="button"><i class="fa-solid fa-location-crosshairs"></i> ${esc(t("nb.exact"))}</button>`}
-    ${ph.length ? `<div class="phs">${ph.map(x => `<a href="${telHref(x)}"><i class="fa-solid fa-phone"></i>${esc(x)}</a>`).join("")}</div>` : ""}
+    ${ph.length ? `<div class="phs">${ph.map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("")}</div>` : ""}
     <div class="btns"><button class="bt" id="nbMap" type="button" data-id="${esc(b.id)}"><i class="fa-solid fa-map-location-dot"></i><span>${esc(t("nb.view"))}</span></button></div>`;
 }
 
@@ -711,7 +783,6 @@ $("nbBody").addEventListener("click", async e => {
 });
 $("cbNear").addEventListener("click", showNearest);
 
-
 async function loadShop() {
   const row = must(await supabase.from("settings").select("value").eq("key", "shop_open").maybeSingle());
   shopOpen = !row || row.value !== "no";
@@ -726,7 +797,7 @@ function watchShop() {
       if (open === shopOpen) return;
       shopOpen = open;
       shopUI();
-      renderPosts();
+      renderCatalog();
       renderDock();
     })
     .subscribe();
@@ -735,7 +806,6 @@ function watchShop() {
 function initLocation() {
   locate(false).then(l => { if (l) updateDistances(); });
 }
-
 
 const RANGE = [["sachet", "r.sachet", "r.sachet.p"], ["bottle", "r.bottle", "r.bottle.p"], ["soda", "r.soda", "r.soda.p"], ["carton", "r.carton", "r.carton.p"]];
 let rangeKey = "sachet";
@@ -764,13 +834,6 @@ $("rTabs").addEventListener("click", e => {
 });
 $("rCta").addEventListener("click", () => openReport(""));
 
-function renderTicker() {
-  const items = [[IMG.bottle, "tk.1"], [IMG.sachet, "tk.2"], [IMG.soda, "tk.3"], ["fa-house", "tk.4"], [IMG.carton, "tk.6"], ["fa-store", "tk.7"]];
-  const one = items.map(([i, k]) => `<span>${i.indexOf("http") === 0 ? `<img class="tkimg" src="${i}" alt="" loading="lazy" decoding="async">` : `<i class="fa-solid ${i}"></i>`}${esc(t(k))}</span>`).join("");
-  const half = one + one;
-  $("tkTrack").innerHTML = half + half;
-}
-
 function countUp(el, to) {
   const t0 = performance.now();
   const step = ts => {
@@ -789,16 +852,17 @@ function renderStats() {
     el.closest(".ring").hidden = vals[id] === 0;
     if (statsDone) el.textContent = vals[id] + (id === "stP" && older.more ? "+" : "");
   });
+  $("hBr").textContent = branches.length;
+  $("hPr").textContent = posts.length + (older.more ? "+" : "");
 }
 
 function renderStatic() {
-  renderTicker();
   renderRange(false);
   renderStats();
 }
 
 new IntersectionObserver((en, obs) => {
-  if (!en.some(x => x.isIntersecting)) return;
+  if (!en.some(z => z.isIntersecting)) return;
   obs.disconnect();
   statsDone = true;
   document.querySelectorAll(".ring").forEach(r => r.classList.add("in"));
@@ -806,91 +870,13 @@ new IntersectionObserver((en, obs) => {
 }, { threshold: 0.3 }).observe($("stats"));
 
 new IntersectionObserver((en, obs) => {
-  if (en.some(x => x.isIntersecting)) { $("tl").classList.add("in"); obs.disconnect(); }
+  if (en.some(z => z.isIntersecting)) { $("tl").classList.add("in"); obs.disconnect(); }
 }, { threshold: 0.25 }).observe($("tl"));
 
-let fillTick = 0;
-function updateFill() {
-  fillTick = 0;
-  const sec = $("fill");
-  if (!sec.classList.contains("vis")) return;
-  const r = sec.getBoundingClientRect();
-  const p = Math.max(0, Math.min(1, (innerHeight - r.top) / (innerHeight + r.height * 0.4)));
-  sec.style.setProperty("--fill", p.toFixed(3));
-  $("fillPct").textContent = Math.round(p * 100) + "%";
-}
-addEventListener("scroll", () => {
-  if (!fillTick) fillTick = requestAnimationFrame(updateFill);
-  $("toTop").classList.toggle("on", scrollY > 700);
-}, { passive: true });
-$("toTop").addEventListener("click", () => scrollTo({ top: 0, behavior: "smooth" }));
-updateFill();
-
-function netCanvas(cv, color) {
-  const ctx = cv.getContext && cv.getContext("2d");
-  if (!ctx) return;
-  const calm = matchMedia("(prefers-reduced-motion:reduce)").matches;
-  let w = 1, h = 1, nodes = [], vis = false, raf = 0, last = 0;
-  const size = () => {
-    const r = cv.getBoundingClientRect();
-    const dpr = Math.min(devicePixelRatio || 1, 1.5);
-    w = cv.width = Math.max(1, Math.round(r.width * dpr));
-    h = cv.height = Math.max(1, Math.round(r.height * dpr));
-    const n = Math.round(Math.min(56, Math.max(20, r.width / 24)));
-    nodes = Array.from({ length: n }, () => ({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.3 * dpr, vy: (Math.random() - 0.5) * 0.3 * dpr, r: (Math.random() * 1.6 + 0.8) * dpr }));
-  };
-  const frame = ts => {
-    raf = 0;
-    if (!vis) return;
-    if (ts - last > 33 || calm) {
-      last = ts;
-      const rgb = color();
-      ctx.clearRect(0, 0, w, h);
-      nodes.forEach(n => {
-        if (!calm) { n.x += n.vx; n.y += n.vy; }
-        if (n.x < 0 || n.x > w) n.vx *= -1;
-        if (n.y < 0 || n.y > h) n.vy *= -1;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, 6.2832);
-        ctx.fillStyle = `rgba(${rgb},.85)`;
-        ctx.fill();
-      });
-      const lim = (Math.min(w, h) * 0.24) ** 2;
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dx = nodes[i].x - nodes[j].x;
-          const dy = nodes[i].y - nodes[j].y;
-          const d = dx * dx + dy * dy;
-          if (d < lim) {
-            ctx.strokeStyle = `rgba(${rgb},${0.32 * (1 - d / lim)})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(nodes[i].x, nodes[i].y);
-            ctx.lineTo(nodes[j].x, nodes[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-    }
-    if (!calm) raf = requestAnimationFrame(frame);
-  };
-  new IntersectionObserver(en => {
-    vis = en[0].isIntersecting;
-    if (vis) { size(); if (!raf) raf = requestAnimationFrame(frame); }
-  }).observe(cv);
-  let rs = 0;
-  addEventListener("resize", () => { clearTimeout(rs); rs = setTimeout(() => { if (vis) size(); }, 200); });
-}
-
-const visIO = new IntersectionObserver(en => en.forEach(x => x.target.classList.toggle("vis", x.isIntersecting)), { rootMargin: "100px" });
-document.querySelectorAll(".hero,.sec").forEach(s => visIO.observe(s));
-netCanvas($("netHero"), () => "125,255,192");
-netCanvas($("netSpot"), () => (getLang() === "ha" ? "255,190,90" : "76,201,240"));
-netCanvas($("netBand"), () => "255,255,255");
+new IntersectionObserver(en => { if (en[0].isIntersecting) loadMore(); }, { rootMargin: "400px" }).observe($("moreBtn"));
 
 loadCart();
 initLang();
-autoScroll($("ps"));
 renderDock();
 showLoading(t("loading"));
 const bootEl = document.getElementById("boot");
@@ -905,11 +891,3 @@ all.then(res => {
   initLocation();
   if (res.every(r => r.status === "rejected")) toast("error", t("err.net"));
 });
-
-if (missing.length) {
-  console.error("index.html does not match index.js. Missing ids:", missing.join(", "));
-  const bar = document.createElement("div");
-  bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:999;padding:12px 16px;background:#b82a2a;color:#fff;font:600 14px system-ui";
-  bar.textContent = "Page files do not match. Replace index.html, index.css and index.js together, then clear the browser cache. Missing: " + missing.join(", ");
-  document.body.appendChild(bar);
-}
