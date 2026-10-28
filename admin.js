@@ -2,14 +2,17 @@ import { bindCode } from "./ui2.js";
 
 const $ = id => document.getElementById(id);
 
-if (sessionStorage.getItem("hs_gate") !== "1") {
+const openHub = () => {
+  $("codeBox").hidden = true;
+  $("hub").hidden = false;
+};
+
+if (sessionStorage.getItem("hs_gate") === "1") {
+  openHub();
+} else {
   $("codeBox").hidden = false;
   bindCode($("code"), () => {
     sessionStorage.setItem("hs_gate", "1");
-    location.replace("admin.html");
+    openHub();
   });
-} else {
-  const { requireAdmin } = await import("./guard.js");
-  await requireAdmin("home");
-  $("hub").hidden = false;
 }
