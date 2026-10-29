@@ -23,13 +23,13 @@ const IMG = {
 
 const X = {
   en: {
-    search: "Search products", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
+    search: "Search products", copied: "Link copied", stext: "Fresh drinks and U-Fresh water by the carton at Hamstore.", post: "Making your poster...", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
     pick: "Choose a product, type how many cartons, and watch your total grow before you pay.",
     upl: "Uploading your report...", upfail: "Could not upload the voice note. Try again.",
     addr: "Your address", voice: "Voice note", ip: "IP address", sent: "Sent", noaddr: "Not available", live: "LIVE", closed: "SHOP CLOSED"
   },
   ha: {
-    search: "Nemi kaya", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
+    search: "Nemi kaya", copied: "An kwafi hanyar shafi", stext: "Lemuka da ruwan U-Fresh da kwali a Hamstore.", post: "Ana yin fosta...", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
     pick: "Zaɓi kaya, rubuta yawan kwali, ka ga jimlar kuɗi tana ƙaruwa kafin ka biya.",
     upl: "Ana aika rahotonka...", upfail: "An kasa loda saƙon murya. Sake gwadawa.",
     addr: "Adireshinka", voice: "Saƙon murya", ip: "IP ɗinka", sent: "An aika", noaddr: "Babu", live: "KAI TSAYE", closed: "SHAGO A RUFE"
@@ -46,6 +46,8 @@ let spotIdx = 0;
 let spotTimer = 0;
 let busyMore = false;
 let query = "";
+let promo = "";
+let newIds = new Set();
 let shopOpen = true;
 let userLoc = null;
 let nearestId = "";
@@ -80,8 +82,8 @@ function ctlHTML(id) {
 function cardHTML(p) {
   const on = shopOpen && !!cart[p.id];
   return `<article class="pc${on ? " sel" : ""}${shopOpen ? "" : " locked"}" data-id="${esc(p.id)}">
-    <div class="pimg"><img loading="lazy" decoding="async" src="${esc(thumb(p.image, "m"))}" alt="${esc(p.name)}"><span class="tag">${esc(unitLabel())}</span><span class="tick"><i class="fa-solid fa-check"></i></span></div>
-    <div class="pb"><h3>${esc(p.name)}</h3><div class="pp">${naira(p.price)}</div><div class="ctl">${ctlHTML(p.id)}</div></div></article>`;
+    <div class="pimg"><img loading="lazy" decoding="async" src="${esc(thumb(p.image, "m"))}" alt="${esc(p.name)}"><span class="tag">${esc(unitLabel())}</span>${newIds.has(p.id) ? '<span class="new">NEW</span>' : ""}<span class="tick"><i class="fa-solid fa-check"></i></span></div>
+    <div class="pb"><h3>${esc(p.name)}</h3><div class="prow"><div class="pp">${naira(p.price)}</div><div class="sh"><button type="button" data-share="${esc(p.id)}" aria-label="Share"><i class="fa-brands fa-whatsapp"></i></button><button type="button" data-poster="${esc(p.id)}" aria-label="Poster"><i class="fa-solid fa-image"></i></button></div></div><div class="ctl">${ctlHTML(p.id)}</div></div></article>`;
 }
 
 function syncCards(id, full = true) {
@@ -168,6 +170,10 @@ function setQty(id, q, light) {
 }
 
 document.addEventListener("click", e => {
+  const shr = e.target.closest("[data-share]");
+  if (shr) { shareProduct(shr.dataset.share); return; }
+  const pst = e.target.closest("[data-poster]");
+  if (pst) { makePoster(pst.dataset.poster); return; }
   const add = e.target.closest("[data-add]");
   if (add) { addItem(add.dataset.add); return; }
   const st = e.target.closest("[data-d]");
@@ -203,6 +209,7 @@ document.addEventListener("focusout", e => {
 });
 
 function renderPosts() {
+  newIds = posts.length > 6 ? new Set([...posts].sort((a, c) => c.createdAt - a.createdAt).filter(p => p.createdAt).slice(0, 3).map(p => p.id)) : new Set();
   const q = query.trim().toLowerCase();
   document.body.classList.toggle("searching", !!q);
   $("catSearch").placeholder = x("search");
@@ -866,8 +873,9 @@ function renderStats() {
 function renderTicker() {
   const items = [[IMG.bottle, "tk.1"], [IMG.sachet, "tk.2"], [IMG.soda, "tk.3"], ["fa-house", "tk.4"], [IMG.carton, "tk.6"], ["fa-store", "tk.7"]];
   const one = items.map(([i, k]) => `<span>${i.indexOf("http") === 0 ? `<img class="tkimg" src="${i}" alt="" loading="lazy" decoding="async">` : `<i class="fa-solid ${i}"></i>`}${esc(t(k))}</span>`).join("");
-  const half = one + one;
-  $("tkTrack").innerHTML = half + half;
+  const lead = promo ? `<span><i class="fa-solid fa-bullhorn"></i>${esc(promo)}</span>` : "";
+  const base = lead + one;
+  $("tkTrack").innerHTML = base + base + base + base;
 }
 
 function renderStatic() {
@@ -978,6 +986,106 @@ netCanvas($("netHero"), "31,157,92");
 netCanvas($("netSpot"), "31,157,92");
 netCanvas($("netBand"), "255,255,255");
 
+async function loadPromo() {
+  const row = must(await supabase.from("settings").select("value").eq("key", "promo_text").maybeSingle());
+  promo = row && row.value ? String(row.value).slice(0, 140) : "";
+}
+
+const siteUrl = () => location.origin + location.pathname.replace(/index\.html$/, "");
+
+function shareProduct(id) {
+  const p = posts.find(z => z.id === id);
+  if (!p) return;
+  const text = `${p.name} - ${naira(p.price)} / ${unitLabel()}\nHamstore Integrated Services\n${siteUrl()}`;
+  if (navigator.share) navigator.share({ title: p.name, text, url: siteUrl() }).catch(() => {});
+  else window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener");
+}
+
+const loadImg = src => new Promise(res => {
+  const i = new Image();
+  i.crossOrigin = "anonymous";
+  i.onload = () => res(i);
+  i.onerror = () => res(null);
+  i.src = src;
+});
+
+function fitText(ctx, text, max) {
+  let s = String(text);
+  while (ctx.measureText(s).width > max && s.length > 3) s = s.slice(0, -2);
+  return s === String(text) ? s : s.trim() + "…";
+}
+
+async function makePoster(id) {
+  const p = posts.find(z => z.id === id);
+  if (!p) return;
+  toast("ok", x("post"));
+  try { await document.fonts.load("56px Lobster"); } catch (e) {}
+  const W = 1080, H = 1350;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const c = cv.getContext("2d");
+  const [logo, pic] = await Promise.all([loadImg("https://i.imgur.com/UXH5q5w.png"), loadImg(thumb(p.image, "h")).then(i => i || loadImg(IMG.carton))]);
+  c.fillStyle = "#f7f4ec";
+  c.fillRect(0, 0, W, H);
+  c.fillStyle = "#e03a3a";
+  c.beginPath(); c.ellipse(W / 2, -60, 860, 400, 0, 0, 6.2832); c.fill();
+  c.fillStyle = "#1f9d5c";
+  c.beginPath(); c.ellipse(W / 2, H + 80, 900, 300, 0, 0, 6.2832); c.fill();
+  if (logo) { const lh = 130, lw = logo.width / logo.height * lh; c.fillStyle = "#fff"; c.beginPath(); c.roundRect((W - lw) / 2 - 24, 36, lw + 48, lh + 24, 40); c.fill(); c.drawImage(logo, (W - lw) / 2, 48, lw, lh); }
+  c.textAlign = "center";
+  c.fillStyle = "#fff";
+  c.font = "56px Lobster, cursive";
+  c.fillText(getLang() === "ha" ? "Sabo daga Hamstore" : "Fresh from Hamstore", W / 2, 270);
+  const bx = 150, by = 320, bw = W - 300, bh = 640;
+  c.save();
+  c.shadowColor = "rgba(0,0,0,.35)"; c.shadowBlur = 40; c.shadowOffsetY = 18;
+  c.fillStyle = "#fff"; c.beginPath(); c.roundRect(bx - 14, by - 14, bw + 28, bh + 28, 48); c.fill();
+  c.restore();
+  c.save();
+  c.beginPath(); c.roundRect(bx, by, bw, bh, 36); c.clip();
+  if (pic) { const r = Math.max(bw / pic.width, bh / pic.height); const dw = pic.width * r, dh = pic.height * r; c.drawImage(pic, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh); }
+  c.restore();
+  c.fillStyle = "#e03a3a";
+  c.beginPath(); c.ellipse(W - 250, by + bh - 20, 190, 100, -0.06, 0, 6.2832); c.fill();
+  c.lineWidth = 8; c.strokeStyle = "#fff"; c.stroke();
+  c.fillStyle = "#fff";
+  c.font = "800 62px system-ui, sans-serif";
+  c.fillText(naira(p.price), W - 250, by + bh - 8);
+  c.font = "34px Lobster, cursive";
+  c.fillText(unitLabel(), W - 250, by + bh + 36);
+  c.fillStyle = "#10261b";
+  c.font = "800 62px system-ui, sans-serif";
+  c.fillText(fitText(c, p.name, W - 160), W / 2, 1090);
+  c.fillStyle = "#fff";
+  c.font = "700 44px system-ui, sans-serif";
+  c.fillText("08060767279", W / 2, 1210);
+  c.font = "34px system-ui, sans-serif";
+  c.fillText(location.host, W / 2, 1262);
+  cv.toBlob(async b => {
+    if (!b) return toast("error", t("err.net"));
+    const file = new File([b], "hamstore-" + id + ".png", { type: "image/png" });
+    const text = `${p.name} - ${naira(p.price)} / ${unitLabel()}\n${siteUrl()}`;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, "image/png");
+}
+
+$("spWa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(x("stext") + "\n" + siteUrl()), "_blank", "noopener");
+$("spShare").onclick = () => {
+  if (navigator.share) navigator.share({ title: "Hamstore", text: x("stext"), url: siteUrl() }).catch(() => {});
+  else $("spWa").click();
+};
+$("spCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(siteUrl()); toast("ok", x("copied")); } catch (e) { toast("error", siteUrl()); }
+};
+
 loadCart();
 initLang();
 autoScroll($("mq"));
@@ -987,7 +1095,7 @@ renderDock();
 showLoading(t("loading"));
 const bootEl = document.getElementById("boot");
 if (bootEl) { bootEl.classList.add("out"); setTimeout(() => bootEl.remove(), 450); }
-const all = Promise.allSettled([loadBranches(), loadPosts(), loadPhones(), loadShop()]);
+const all = Promise.allSettled([loadBranches(), loadPosts(), loadPhones(), loadShop(), loadPromo()]);
 await Promise.race([all, new Promise(r => setTimeout(r, 3500))]);
 hideLoading();
 renderAll();
