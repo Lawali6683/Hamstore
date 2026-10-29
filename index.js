@@ -45,7 +45,6 @@ let older = { more: false };
 let spotIdx = 0;
 let spotTimer = 0;
 let busyMore = false;
-let tab = "all";
 let query = "";
 let shopOpen = true;
 let userLoc = null;
@@ -203,43 +202,46 @@ document.addEventListener("focusout", e => {
   if (!(v >= 1)) inp.value = cart[id].q;
 });
 
-function renderTabs() {
-  const nw = posts.filter(isWater).length;
-  const list = [["all", x("all"), posts.length], ["water", x("water"), nw], ["drinks", x("drinks"), posts.length - nw]];
-  $("catTabs").innerHTML = list.filter(([k, , n]) => k === "all" || n > 0).map(([k, name, n]) => `<button class="ctab" type="button" role="tab" data-k="${k}" aria-selected="${k === tab}">${esc(name)} <em>${n}</em></button>`).join("");
-}
-
-function filtered() {
+function renderPosts() {
   const q = query.trim().toLowerCase();
-  return posts.filter(p => (tab === "all" || (tab === "water" ? isWater(p) : !isWater(p))) && (!q || String(p.name).toLowerCase().includes(q)));
-}
-
-function renderCatalog() {
-  $("catalog").hidden = !posts.length;
-  $("mCatalog").hidden = !posts.length;
+  document.body.classList.toggle("searching", !!q);
   $("catSearch").placeholder = x("search");
-  $("catSub").textContent = shopOpen ? x("pick") : t("drinks.sub.closed");
-  renderTabs();
-  const list = filtered();
-  $("catGrid").innerHTML = list.map(cardHTML).join("");
-  $("catEmpty").hidden = !!list.length;
-  $("catEmpty").textContent = x("none");
+  $("mWater").hidden = !posts.some(isWater);
+  $("mDrinks").hidden = !posts.some(p => !isWater(p));
+  if (q) {
+    const list = posts.filter(p => String(p.name).toLowerCase().includes(q));
+    $("found").hidden = false;
+    $("fGrid").innerHTML = list.map(cardHTML).join("");
+    $("fEmpty").hidden = !!list.length;
+    $("fEmpty").textContent = x("none");
+    return;
+  }
+  $("found").hidden = true;
+  const water = posts.filter(isWater);
+  const drinks = posts.filter(p => !isWater(p));
+  const n = drinks.length;
+  let i = 0;
+  const take = c => { const s = drinks.slice(i, i + c); i += c; return s; };
+  const mq = take(Math.min(12, Math.ceil(n * 0.4)));
+  const ps = take(Math.min(10, Math.ceil(n * 0.25)));
+  const tk = take(Math.min(8, Math.ceil(n * 0.2)));
+  const rest = drinks.slice(i);
+  const fill = (id, secId, list) => { $(secId).hidden = !list.length; $(id).innerHTML = list.map(cardHTML).join(""); };
+  fill("wGrid", "water", water);
+  fill("mq", "drinks", mq);
+  fill("ps", "picks", ps);
+  fill("tGrid", "deals", tk);
+  fill("mGrid", "all", rest);
   $("moreBtn").hidden = !older.more;
+  $("mWater").hidden = !water.length;
+  $("mDrinks").hidden = !mq.length;
   observeReveal();
 }
 
-$("catTabs").addEventListener("click", e => {
-  const b = e.target.closest(".ctab");
-  if (!b) return;
-  tab = b.dataset.k;
-  renderCatalog();
-});
+let searchT = 0;
 $("catSearch").addEventListener("input", e => {
-  query = e.target.value;
-  const list = filtered();
-  $("catGrid").innerHTML = list.map(cardHTML).join("");
-  $("catEmpty").hidden = !!list.length;
-  $("catEmpty").textContent = x("none");
+  clearTimeout(searchT);
+  searchT = setTimeout(() => { query = e.target.value; renderPosts(); }, 150);
 });
 
 function branchCard(b) {
@@ -627,8 +629,10 @@ async function loadMore() {
     const from = posts.length;
     const rows = (must(await supabase.from("posts").select("*").order("created_at", { ascending: false }).range(from, from + MORE - 1)) || []).map(normPost);
     older.more = rows.length >= MORE;
+    const before = posts.length;
     mergePosts(rows);
-    renderCatalog();
+    if (posts.length === before) older.more = false;
+    renderPosts();
   } catch (e) {
     toast("error", t("err.net"));
   } finally {
@@ -653,7 +657,7 @@ function renderAll() {
   shopUI();
   renderStatic();
   renderBranches();
-  renderCatalog();
+  renderPosts();
   renderDock();
   observeReveal();
 }
@@ -729,6 +733,9 @@ function shopUI() {
   $("cartBtn").hidden = !shopOpen;
   $("hLive").textContent = shopOpen ? x("live") : x("closed");
   $("hcard").classList.toggle("off", !shopOpen);
+  const sub = $("drinksSub");
+  sub.dataset.i18n = shopOpen ? "drinks.sub" : "drinks.sub.closed";
+  sub.textContent = t(sub.dataset.i18n);
 }
 
 function closeNearest() {
@@ -797,7 +804,7 @@ function watchShop() {
       if (open === shopOpen) return;
       shopOpen = open;
       shopUI();
-      renderCatalog();
+      renderPosts();
       renderDock();
     })
     .subscribe();
@@ -856,7 +863,15 @@ function renderStats() {
   $("hPr").textContent = posts.length + (older.more ? "+" : "");
 }
 
+function renderTicker() {
+  const items = [[IMG.bottle, "tk.1"], [IMG.sachet, "tk.2"], [IMG.soda, "tk.3"], ["fa-house", "tk.4"], [IMG.carton, "tk.6"], ["fa-store", "tk.7"]];
+  const one = items.map(([i, k]) => `<span>${i.indexOf("http") === 0 ? `<img class="tkimg" src="${i}" alt="" loading="lazy" decoding="async">` : `<i class="fa-solid ${i}"></i>`}${esc(t(k))}</span>`).join("");
+  const half = one + one;
+  $("tkTrack").innerHTML = half + half;
+}
+
 function renderStatic() {
+  renderTicker();
   renderRange(false);
   renderStats();
 }
@@ -875,8 +890,99 @@ new IntersectionObserver((en, obs) => {
 
 new IntersectionObserver(en => { if (en[0].isIntersecting) loadMore(); }, { rootMargin: "400px" }).observe($("moreBtn"));
 
+function autoScroll(el) {
+  let pos = 0, last = 0, paused = false, timer = 0, vis = false;
+  const hold = () => { paused = true; pos = el.scrollLeft; clearTimeout(timer); timer = setTimeout(() => { pos = el.scrollLeft; paused = false; }, 3500); };
+  ["pointerdown", "touchstart", "wheel", "keydown", "focusin"].forEach(ev => el.addEventListener(ev, hold, { passive: true }));
+  new IntersectionObserver(en => { vis = en[0].isIntersecting; }).observe(el);
+  const calm = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  const tick = ts => {
+    if (vis && !paused && !calm && last) {
+      pos += (ts - last) * 0.04;
+      if (pos >= el.scrollWidth - el.clientWidth - 1) pos = 0;
+      el.scrollLeft = pos;
+    }
+    last = ts;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+let fillTick = 0;
+function updateFill() {
+  fillTick = 0;
+  const sec = $("fill");
+  const r = sec.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > innerHeight) return;
+  const p = Math.max(0, Math.min(1, (innerHeight - r.top) / (innerHeight + r.height * 0.4)));
+  sec.style.setProperty("--fill", p.toFixed(3));
+  $("fillPct").textContent = Math.round(p * 100) + "%";
+}
+addEventListener("scroll", () => { if (!fillTick) fillTick = requestAnimationFrame(updateFill); }, { passive: true });
+
+function netCanvas(cv, rgb) {
+  const ctx = cv.getContext && cv.getContext("2d");
+  if (!ctx) return;
+  const calm = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  let w = 1, h = 1, nodes = [], vis = false, raf = 0, last = 0;
+  const size = () => {
+    const r = cv.getBoundingClientRect();
+    const dpr = Math.min(devicePixelRatio || 1, 1.25);
+    w = cv.width = Math.max(1, Math.round(r.width * dpr));
+    h = cv.height = Math.max(1, Math.round(r.height * dpr));
+    const n = Math.round(Math.min(34, Math.max(14, r.width / 36)));
+    nodes = Array.from({ length: n }, () => ({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.3 * dpr, vy: (Math.random() - 0.5) * 0.3 * dpr, r: (Math.random() * 1.4 + 0.8) * dpr }));
+  };
+  const frame = ts => {
+    raf = 0;
+    if (!vis) return;
+    if (ts - last > 45 || calm) {
+      last = ts;
+      ctx.clearRect(0, 0, w, h);
+      nodes.forEach(n => {
+        if (!calm) { n.x += n.vx; n.y += n.vy; }
+        if (n.x < 0 || n.x > w) n.vx *= -1;
+        if (n.y < 0 || n.y > h) n.vy *= -1;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, 6.2832);
+        ctx.fillStyle = `rgba(${rgb},.7)`;
+        ctx.fill();
+      });
+      const lim = (Math.min(w, h) * 0.22) ** 2;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const d = dx * dx + dy * dy;
+          if (d < lim) {
+            ctx.strokeStyle = `rgba(${rgb},${0.3 * (1 - d / lim)})`;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+    if (!calm) raf = requestAnimationFrame(frame);
+  };
+  new IntersectionObserver(en => {
+    vis = en[0].isIntersecting;
+    if (vis) { size(); if (!raf) raf = requestAnimationFrame(frame); }
+  }).observe(cv);
+}
+
+const svIO = new IntersectionObserver(en => en.forEach(z => z.target.classList.toggle("sv", z.isIntersecting)), { rootMargin: "80px" });
+document.querySelectorAll(".hero,.sec").forEach(s => svIO.observe(s));
+netCanvas($("netHero"), "31,157,92");
+netCanvas($("netSpot"), "31,157,92");
+netCanvas($("netBand"), "255,255,255");
+
 loadCart();
 initLang();
+autoScroll($("mq"));
+autoScroll($("ps"));
+updateFill();
 renderDock();
 showLoading(t("loading"));
 const bootEl = document.getElementById("boot");
