@@ -490,7 +490,7 @@ $("rp").addEventListener("ovclose", micReset);
 $("rpNew").onclick = () => { micReset(); $("rpText").value = ""; $("rpForm").hidden = false; $("rpOk").hidden = true; };
 
 async function uploadAudio(b) {
-  const mime = b.type || "audio/webm";
+  const mime = (b.type || "audio/webm").split(";")[0];
   const ext = mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
   const path = `${new Date().toISOString().slice(0, 10)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, b, { contentType: mime, upsert: false });
