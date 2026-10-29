@@ -7,21 +7,38 @@
 <title>Hamstore Admin - Requests</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
 <link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="adminrep.css">
 </head>
 <body>
-<main class="wrap">
+<main class="wrap ar">
   <div class="topline">
-    <h2>Requests and reports</h2>
-    <button class="ghost" id="settings" type="button"><i class="fa-solid fa-gear"></i>Settings</button>
+    <h2><span class="livedot"></span>Requests and reports</h2>
+    <div class="tools">
+      <button class="ghost" id="alerts" type="button"></button>
+      <button class="ghost" id="exportBtn" type="button"><i class="fa-solid fa-file-csv"></i>Export</button>
+      <button class="ghost" id="settings" type="button"><i class="fa-solid fa-gear"></i>Settings</button>
+    </div>
   </div>
-  <div class="chips" id="filters" style="margin:0">
-    <button class="chip on" data-f="new">New</button>
-    <button class="chip" data-f="order">Orders</button>
-    <button class="chip" data-f="stock">No stock</button>
-    <button class="chip" data-f="message">Messages</button>
-    <button class="chip" data-f="done">Done</button>
-    <button class="chip" data-f="all">All</button>
+
+  <div class="ar-stats">
+    <div class="s new"><i class="fa-solid fa-bell"></i><b id="sNew">0</b><small>New</small></div>
+    <div class="s"><i class="fa-solid fa-calendar-day"></i><b id="sToday">0</b><small>Today</small></div>
+    <div class="s"><i class="fa-solid fa-microphone-lines"></i><b id="sVoice">0</b><small>Voice notes</small></div>
+    <div class="s"><i class="fa-solid fa-cart-shopping"></i><b id="sOrder">0</b><small>Orders</small></div>
   </div>
+
+  <label class="ar-search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" type="search" autocomplete="off" placeholder="Search name, phone, message, address or IP"></label>
+
+  <div class="chips" id="filters">
+    <button class="chip on" data-f="new">New <b>0</b></button>
+    <button class="chip" data-f="order">Orders <b>0</b></button>
+    <button class="chip" data-f="stock">No stock <b>0</b></button>
+    <button class="chip" data-f="message">Messages <b>0</b></button>
+    <button class="chip" data-f="voice">Voice <b>0</b></button>
+    <button class="chip" data-f="done">Done <b>0</b></button>
+    <button class="chip" data-f="all">All <b>0</b></button>
+  </div>
+
   <div class="rg" id="list"></div>
   <div class="empty" id="empty" hidden><i class="fa-regular fa-bell" style="font-size:28px"></i><p>Nothing here yet.</p></div>
   <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
