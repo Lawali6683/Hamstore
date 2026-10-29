@@ -74,7 +74,8 @@
   <div class="in">
     <a href="#top" data-go style="--i:0"><span class="n">01</span><i class="fa-solid fa-house"></i><span data-i18n="menu.home">Home</span></a>
     <a href="#branches" data-go id="mBranches" style="--i:1"><span class="n">02</span><i class="fa-solid fa-store"></i><span data-i18n="menu.branches">Our branches</span></a>
-    <a href="#catalog" data-go id="mCatalog" style="--i:2"><span class="n">03</span><i class="fa-solid fa-basket-shopping"></i><span><span class="en">Products</span><span class="ha">Kayayyaki</span></span></a>
+    <a href="#water" data-go id="mWater" style="--i:2"><span class="n">03</span><img class="mimg" src="https://i.imgur.com/gh63h20.png" alt=""><span data-i18n="menu.water">U-Fresh water</span></a>
+    <a href="#drinks" data-go id="mDrinks" style="--i:3"><span class="n">04</span><img class="mimg" src="https://i.imgur.com/n9hXIkG.png" alt=""><span data-i18n="menu.drinks">Drinks</span></a>
     <a href="#range" data-go style="--i:3"><span class="n">04</span><img class="mimg" src="https://i.imgur.com/MX49i4K.png" alt=""><span data-i18n="menu.range">Our range</span></a>
     <a href="#tech" data-go style="--i:4"><span class="n">05</span><i class="fa-solid fa-microchip"></i><span><span class="en">Our technology</span><span class="ha">Fasaharmu</span></span></a>
     <a href="#steps" data-go style="--i:5"><span class="n">06</span><i class="fa-solid fa-list-check"></i><span data-i18n="menu.steps">How to order</span></a>
@@ -90,7 +91,7 @@
 
 <main id="main">
   <section class="hero" id="top">
-    <div class="blob b1"></div><div class="blob b2"></div>
+    <canvas class="net" id="netHero" aria-hidden="true"></canvas><div class="blob b1"></div><div class="blob b2"></div>
     <div class="wrap hgrid">
       <div class="hcopy">
         <span class="chipw"><i></i><span data-i18n="hero.welcome">Welcome to</span></span>
@@ -102,7 +103,7 @@
           <div class="nt amber"><img class="mimg" src="https://i.imgur.com/MX49i4K.png" alt=""><span><span class="en">All drinks and water are sold by the carton only, not single pieces.</span><span class="ha">Ana sayar da dukkan lemuka da ruwa ne da kwali (katon) kawai, ba guda ɗaya ba.</span></span></div>
         </div>
         <div class="btns">
-          <a class="bt" href="#catalog" data-go><i class="fa-solid fa-basket-shopping"></i><span><span class="en">Shop now</span><span class="ha">Fara siyayya</span></span></a>
+          <a class="bt" href="#shop" data-go><i class="fa-solid fa-basket-shopping"></i><span><span class="en">Shop now</span><span class="ha">Fara siyayya</span></span></a>
           <a class="bt ghost" href="#branches" data-go><i class="fa-solid fa-location-dot"></i><span data-i18n="hero.cta1">Find a branch</span></a>
           <a class="bt wa" href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp</span></a>
           <button class="bt red" type="button" id="heroReport"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="hero.cta2">Send a report</span></button>
@@ -133,17 +134,14 @@
     <button class="bt" type="button" id="cbNear"><i class="fa-solid fa-location-crosshairs"></i><span data-i18n="shop.nearest">Show my nearest branch</span></button>
   </div>
 
-  <section class="sec s-catalog" id="catalog" hidden>
+  <div class="tkwrap" aria-hidden="true"><div class="s-ticker"><div class="tk-track" id="tkTrack"></div></div></div>
+
+  <div class="wrap sbwrap"><label class="csearch"><i class="fa-solid fa-magnifying-glass"></i><input id="catSearch" type="search" autocomplete="off" placeholder="Search"></label></div>
+
+  <section class="sec s-found" id="found" hidden>
     <div class="wrap">
-      <h2 class="rv"><span class="en">Our products</span><span class="ha">Kayayyakinmu</span></h2>
-      <p class="sub rv" id="catSub"></p>
-      <div class="ctools rv">
-        <div class="ctabs" id="catTabs" role="tablist"></div>
-        <label class="csearch"><i class="fa-solid fa-magnifying-glass"></i><input id="catSearch" type="search" autocomplete="off" placeholder="Search"></label>
-      </div>
-      <div class="pgrid" id="catGrid"></div>
-      <p class="empty" id="catEmpty" hidden></p>
-      <button class="morebtn" id="moreBtn" type="button" hidden><span data-i18n="all.more">Show more</span></button>
+      <div class="pgrid" id="fGrid"></div>
+      <p class="empty" id="fEmpty" hidden></p>
     </div>
   </section>
 
@@ -155,7 +153,43 @@
     </div>
   </section>
 
-  <section class="sec s-range" id="range">
+  <span class="anchor" id="shop"></span>
+  <section class="sec s-water" id="water" hidden>
+    <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="water.title">U-Fresh Water</h2>
+      <p class="sub rv" data-i18n="water.sub">Clean, fresh and safe to drink. Sachet and bottle, sold by the carton.</p>
+      <div class="pgrid" id="wGrid"></div>
+    </div>
+  </section>
+
+  <section class="sec s-fill" id="fill">
+    <div class="wrap">
+      <h2 class="rv" data-i18n="fill.title">Pure and fresh, carton by carton</h2>
+      <p class="sub rv" data-i18n="fill.sub">Scroll down to fill the bottle. U-Fresh comes in sachet and in bottle.</p>
+      <div class="fillgrid">
+        <div class="fbwrap rv rv-z">
+          <div class="bot"><img class="base" src="https://i.imgur.com/lj3lRj6.png" alt="" loading="lazy" decoding="async"><img class="full" src="https://i.imgur.com/lj3lRj6.png" alt="U-Fresh water bottle" loading="lazy" decoding="async"></div>
+          <div class="pct" id="fillPct">0%</div>
+        </div>
+        <div class="bubs">
+          <div class="bub rv rv-r"><i class="fa-solid fa-hand-sparkles"></i><div><h3 data-i18n="fill.c1t">Clean</h3><p data-i18n="fill.c1p">Made to be safe and pleasant to drink.</p></div></div>
+          <div class="bub rv rv-r"><i class="fa-solid fa-snowflake"></i><div><h3 data-i18n="fill.c2t">Fresh</h3><p data-i18n="fill.c2p">Sachet for every day, bottle for the road.</p></div></div>
+          <div class="bub rv rv-r"><i class="fa-solid fa-location-dot"></i><div><h3 data-i18n="fill.c3t">Always near</h3><p data-i18n="fill.c3p">Find U-Fresh in our branches.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec s-drinks" id="drinks" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="drinks.title">Drinks for every taste</h2>
+      <p class="sub rv" id="drinksSub" data-i18n="drinks.sub">Tap a product to choose it. Tap the number to set how many cartons.</p>
+    </div>
+    <div class="hrow" id="mq"></div>
+  </section>
+
+    <section class="sec s-range" id="range">
     <div class="wrap">
       <h2 class="rv" data-i18n="range.title">Our range at a glance</h2>
       <p class="sub rv" data-i18n="range.sub">Tap a tab to see each kind.</p>
@@ -167,33 +201,41 @@
     </div>
   </section>
 
+  <section class="sec s-picks" id="picks" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="picks.title">Fresh picks</h2>
+      <p class="sub rv" data-i18n="picks.sub">Swipe with your finger to see more.</p>
+    </div>
+    <div class="hrow" id="ps"></div>
+  </section>
+
   <section class="sec s-tech" id="tech">
     <div class="wrap">
       <h2 class="rv"><span class="en">A shop that runs on modern technology</span><span class="ha">Kasuwanci da ke tafiya da fasahar zamani</span></h2>
       <p class="sub rv"><span class="en">Everything you see here works in real time, so buying from Hamstore is fast, clear and safe.</span><span class="ha">Duk abin da kake gani a nan yana aiki a lokaci guda, don haka siyayya a Hamstore tana da sauri, a fili kuma lafiya.</span></p>
-      <div class="tgrid">
+      <div class="techgrid">
         <div class="tc rv wide">
-          <div class="vis v-live"><i class="d"></i><svg viewBox="0 0 160 50" aria-hidden="true"><polyline points="0,38 20,30 40,34 60,18 80,24 100,10 120,16 140,6 160,12"/></svg></div>
+          <div class="tv v-live"><i class="d"></i><svg viewBox="0 0 160 50" aria-hidden="true"><polyline points="0,38 20,30 40,34 60,18 80,24 100,10 120,16 140,6 160,12"/></svg></div>
           <h3><span class="en">Live prices and stock</span><span class="ha">Farashi da kaya kai tsaye</span></h3>
           <p><span class="en">The moment we change a price or close the shop, your screen updates by itself.</span><span class="ha">Da zarar mun canja farashi ko mun rufe shago, allonka yana sabuntuwa da kansa.</span></p>
         </div>
         <div class="tc rv">
-          <div class="vis v-gps"><i></i><i></i><i></i><b></b></div>
+          <div class="tv v-gps"><i></i><i></i><i></i><b></b></div>
           <h3><span class="en">GPS branch finder</span><span class="ha">Neman reshe da GPS</span></h3>
           <p><span class="en">We find your nearest branch and draw the road to it.</span><span class="ha">Muna nemo maka reshe mafi kusa mu zana hanyar zuwa gare shi.</span></p>
         </div>
         <div class="tc rv">
-          <div class="vis v-wave"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+          <div class="tv v-wave"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
           <h3><span class="en">Voice reports</span><span class="ha">Rahoton murya</span></h3>
           <p><span class="en">Record a voice note. It reaches us with your address.</span><span class="ha">Ka yi rikodin murya. Tana zuwa gare mu tare da adireshinka.</span></p>
         </div>
         <div class="tc rv">
-          <div class="vis v-total"><span>₦</span><b>11,700</b></div>
+          <div class="tv v-total"><span>₦</span><b>11,700</b></div>
           <h3><span class="en">Live total</span><span class="ha">Jimla kai tsaye</span></h3>
           <p><span class="en">Type your cartons and watch the amount grow before you pay.</span><span class="ha">Ka rubuta yawan kwali ka ga kuɗin yana ƙaruwa kafin ka biya.</span></p>
         </div>
         <div class="tc rv wide">
-          <div class="vis v-code"><span>HS-4F9K2</span></div>
+          <div class="tv v-code"><span>HS-4F9K2</span></div>
           <h3><span class="en">Instant order code and PDF</span><span class="ha">Lambar oda da PDF nan take</span></h3>
           <p><span class="en">Upload your proof of payment and receive a code you can save or print.</span><span class="ha">Ka loda shaidar biyan kuɗi ka sami lamba da za ka adana ko ka buga.</span></p>
         </div>
@@ -214,6 +256,14 @@
     </div>
   </section>
 
+  <section class="sec s-deals" id="deals" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="deals.title">More to love</h2>
+      <p class="sub rv" data-i18n="deals.sub">More products from Hamstore.</p>
+      <div class="dgrid" id="tGrid"></div>
+    </div>
+  </section>
+
   <section class="sec s-stats" id="stats">
     <div class="wrap">
       <h2 class="rv" data-i18n="stat.title">Hamstore in numbers</h2>
@@ -227,6 +277,7 @@
   </section>
 
   <section class="sec s-spot" id="spot" hidden>
+    <canvas class="net" id="netSpot" aria-hidden="true"></canvas>
     <div class="wrap">
       <h2 class="rv" data-i18n="spot.title">Branch spotlight</h2>
       <p class="sub rv" data-i18n="spot.sub">Our products are available in every branch.</p>
@@ -248,6 +299,15 @@
         <div class="pil rv" data-n="3"><i class="fa-solid fa-microphone-lines"></i><h3 data-i18n="w3t">We listen</h3><p data-i18n="w3p">Send a voice note or a message and we reply.</p></div>
         <div class="pil rv" data-n="4"><i class="fa-solid fa-credit-card"></i><h3 data-i18n="w4t">Easy payment</h3><p data-i18n="w4p">Pay to our account and get a code and a PDF.</p></div>
       </div>
+    </div>
+  </section>
+
+  <section class="sec s-all" id="all" hidden>
+    <div class="wrap">
+      <h2 class="rv" data-i18n="all.title">Everything we sell</h2>
+      <p class="sub rv" data-i18n="all.sub">The full list, newest first.</p>
+      <div class="pgrid" id="mGrid"></div>
+      <button class="morebtn" id="moreBtn" type="button" hidden><span data-i18n="all.more">Show more</span></button>
     </div>
   </section>
 
@@ -279,6 +339,7 @@
   </section>
 
   <section class="sec s-band" id="band">
+    <canvas class="net" id="netBand" aria-hidden="true"></canvas>
     <div class="wrap">
       <h2 data-i18n="band.title">Can't find our drinks near you?</h2>
       <p data-i18n="band.text">Send a voice note or a message. Tell us where you are and we will help.</p>
