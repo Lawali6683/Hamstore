@@ -23,13 +23,13 @@ const IMG = {
 
 const X = {
   en: {
-    search: "Search products", copied: "Link copied", stext: "Fresh drinks and U-Fresh water by the carton at Hamstore.", post: "Making your poster...", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
+    search: "Search products", sendBoth: "Send voice note and message", sendVoice: "Send voice note", sendMsg: "Send message", nobr: "No branch is available yet.", nbOpen: "The branch closest to where you are now.", yourloc: "Your location", noloc: "We could not get your location. Allow location access and try again.", retry: "Try again", routeBtn: "Show route on map", others: "Other branches near you", offline: "You are offline. Check your internet.", online: "Back online", wamsg: "Hello, I am on my way to your branch. My location:", copied: "Link copied", stext: "Fresh drinks and U-Fresh water by the carton at Hamstore.", post: "Making your poster...", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
     pick: "Choose a product, type how many cartons, and watch your total grow before you pay.",
     upl: "Uploading your report...", upfail: "Could not upload the voice note. Try again.",
     addr: "Your address", voice: "Voice note", ip: "IP address", sent: "Sent", noaddr: "Not available", live: "LIVE", closed: "SHOP CLOSED"
   },
   ha: {
-    search: "Nemi kaya", copied: "An kwafi hanyar shafi", stext: "Lemuka da ruwan U-Fresh da kwali a Hamstore.", post: "Ana yin fosta...", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
+    search: "Nemi kaya", sendBoth: "Tura murya da saƙo", sendVoice: "Tura saƙon murya", sendMsg: "Tura saƙo", nobr: "Babu reshe (branch) tukuna.", nbOpen: "Reshen da ya fi kusa da inda kake yanzu.", yourloc: "Inda kake", noloc: "Ba mu samu wurinka ba. Ka ba da izinin location ka sake gwadawa.", retry: "Sake gwadawa", routeBtn: "Nuna hanya a taswira", others: "Sauran rassa kusa da kai", offline: "Babu intanet. Ka duba haɗin ka.", online: "An dawo kan intanet", wamsg: "Sannu, ina hanyar zuwa reshenku. Wurina:", copied: "An kwafi hanyar shafi", stext: "Lemuka da ruwan U-Fresh da kwali a Hamstore.", post: "Ana yin fosta...", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
     pick: "Zaɓi kaya, rubuta yawan kwali, ka ga jimlar kuɗi tana ƙaruwa kafin ka biya.",
     upl: "Ana aika rahotonka...", upfail: "An kasa loda saƙon murya. Sake gwadawa.",
     addr: "Adireshinka", voice: "Saƙon murya", ip: "IP ɗinka", sent: "An aika", noaddr: "Babu", live: "KAI TSAYE", closed: "SHAGO A RUFE"
@@ -149,6 +149,7 @@ function addItem(id) {
   const p = posts.find(z => z.id === id);
   if (!p || cart[id]) return;
   cart[id] = { q: 1, n: p.name, p: p.price, u: "Carton", i: p.image };
+  if (navigator.vibrate) navigator.vibrate(15);
   saveCart();
   syncCards(id);
   renderDock();
@@ -317,89 +318,224 @@ function ovPop() {
 window.addEventListener("popstate", ovPop);
 const back = () => { if (stack.length) history.back(); };
 
-let bvMap = null;
-let bvTimer = 0;
-const dotIcon = (L, c) => L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="pdot" style="--c:${c}"><i></i><b></b></div>` });
+const waNum = p => {
+  const d = String(p || "").replace(/\D/g, "");
+  if (d.startsWith("234")) return d;
+  if (d.startsWith("0")) return "234" + d.slice(1);
+  return d;
+};
+const fmtKm = n => (n < 10 ? n.toFixed(1) : String(Math.round(n))) + " km";
+const fmtMin = m => (m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m");
+const fmtDist = d => (d < 1000 ? Math.max(10, Math.round(d / 10) * 10) + " m" : (d / 1000).toFixed(1) + " km");
+const arriveAt = min => new Date(Date.now() + min * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+const DIR = {
+  en: { left: "Turn left", right: "Turn right", "slight left": "Bear left", "slight right": "Bear right", "sharp left": "Sharp left", "sharp right": "Sharp right", straight: "Continue straight", uturn: "Make a U-turn" },
+  ha: { left: "Ka juya hagu", right: "Ka juya dama", "slight left": "Ka karkata hagu kaɗan", "slight right": "Ka karkata dama kaɗan", "sharp left": "Ka juya hagu sosai", "sharp right": "Ka juya dama sosai", straight: "Ka ci gaba da tafiya", uturn: "Ka juya baya" }
+};
+
+function stepText(s) {
+  const ha = getLang() === "ha";
+  const L = ha ? DIR.ha : DIR.en;
+  const type = s.m.type;
+  const mod = s.m.modifier;
+  const on = s.name ? (ha ? " a " : " onto ") + s.name : "";
+  if (type === "depart") return (ha ? "Ka fara tafiya" : "Start driving") + (s.name ? (ha ? " a " : " on ") + s.name : "");
+  if (type === "arrive") return ha ? "Ka isa wurin" : "You have arrived";
+  if (type === "roundabout" || type === "rotary") return (ha ? "Shiga zagaye" : "Enter the roundabout") + on;
+  return (mod && L[mod] ? L[mod] : L.straight) + on;
+}
+
+function stepIcon(s) {
+  const type = s.m.type;
+  const mod = s.m.modifier || "";
+  if (type === "arrive") return "fa-flag-checkered";
+  if (type === "depart") return "fa-play";
+  if (type === "roundabout" || type === "rotary") return "fa-arrows-rotate";
+  if (mod === "uturn") return "fa-rotate-left";
+  if (mod.includes("left")) return "fa-arrow-left";
+  if (mod.includes("right")) return "fa-arrow-right";
+  return "fa-arrow-up";
+}
+
+const pinIcon = (L, b) => L.divIcon({ className: "", iconSize: [54, 66], iconAnchor: [27, 66], popupAnchor: [0, -62], html: `<div class="pin">${b.image ? `<img src="${esc(thumb(b.image, "t"))}" alt="">` : '<i class="fa-solid fa-store"></i>'}</div>` });
+const meIcon = L => L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="me"><i></i><b></b></div>' });
+const vehIcon = L => L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="veh"><i class="fa-solid fa-car-side"></i></div>' });
 
 async function routeTo(a, b) {
   try {
-    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`);
+    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&steps=true`);
     const j = await r.json();
     const rt = j.routes && j.routes[0];
     if (!rt) throw new Error("none");
-    return { pts: rt.geometry.coordinates.map(c => [c[1], c[0]]), km: rt.distance / 1000, min: Math.max(1, Math.round(rt.duration / 60)) };
+    const steps = [];
+    (rt.legs || []).forEach(l => (l.steps || []).forEach(s => steps.push({ m: s.maneuver || {}, name: s.name || "", d: s.distance || 0 })));
+    return { pts: rt.geometry.coordinates.map(c => [c[1], c[0]]), km: rt.distance / 1000, min: Math.max(1, Math.round(rt.duration / 60)), steps, est: false };
   } catch (e) {
     const d = km(a, b);
-    return { pts: [[a.lat, a.lng], [b.lat, b.lng]], km: d, min: Math.max(1, Math.round((d / 30) * 60)) };
+    return { pts: [[a.lat, a.lng], [b.lat, b.lng]], km: d, min: Math.max(1, Math.round((d / 30) * 60)), steps: [], est: true };
   }
+}
+
+let bvMap = null;
+let bvTimer = 0;
+let bvVeh = 0;
+let bvFit = null;
+
+function bvStop() {
+  clearInterval(bvTimer);
+  clearInterval(bvVeh);
+  bvFit = null;
+  if (bvMap) { bvMap.remove(); bvMap = null; }
+}
+
+function fitPad() {
+  const side = matchMedia("(orientation:landscape) and (max-height:560px)").matches;
+  return side
+    ? { paddingTopLeft: [60, 70], paddingBottomRight: [Math.min(380, innerWidth * 0.46) + 30, 30] }
+    : { paddingTopLeft: [30, 80], paddingBottomRight: [30, Math.round(innerHeight * 0.46)] };
+}
+
+function startVehicle(L, map, pts) {
+  if (pts.length < 2) return;
+  const veh = L.marker(pts[0], { icon: vehIcon(L), interactive: false, zIndexOffset: 400 }).addTo(map);
+  const inc = Math.max(1, Math.ceil(pts.length / 140));
+  let i = 0;
+  bvVeh = setInterval(() => {
+    if (bvMap !== map) return clearInterval(bvVeh);
+    i += inc;
+    if (i >= pts.length) i = 0;
+    veh.setLatLng(pts[i]);
+  }, 60);
 }
 
 async function openBranch(id) {
   const b = branches.find(z => z.id === id);
   if (!b) return;
   const ov = $("bv");
-  $("bvTitle").textContent = b.name;
-  $("bvImg").src = thumb(b.image, "h");
-  $("bvImg").alt = b.name;
-  $("bvAd").innerHTML = `<i class="fa-solid fa-location-dot"></i>${esc(b.address)}`;
   const st = branchStatus(b);
+  const ph = [b.phone, b.phone2, b.phone3].filter(Boolean);
+  $("bvTitle").textContent = b.name;
+  $("bvImg").src = thumb(b.image, "l");
+  $("bvImg").alt = b.name;
+  $("bvAd").textContent = b.address;
   $("bvSt").className = "stt" + (st ? " " + st : "");
   $("bvSt").textContent = st ? t(st === "open" ? "br.open" : "br.closed") : "";
   $("bvHr").textContent = b.opens && b.closes ? t("br.hours", { o: b.opens, c: b.closes }) : "";
-  $("bvPh").innerHTML = [b.phone, b.phone2, b.phone3].filter(Boolean).map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("");
-  $("bvDir").href = `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}`;
+  $("bvPh").innerHTML = ph.map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("");
+  $("bvDir").href = `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}&travelmode=driving`;
+  $("bvWa").hidden = !ph.length;
+  $("bvWa").href = ph.length ? `https://wa.me/${waNum(ph[0])}` : "#";
   $("bvRep").dataset.id = b.id;
   $("bvMsg").textContent = t("bv.finding");
-  $("bvSub").textContent = b.name;
-  ov.querySelector(".ovbody").scrollTop = 0;
+  $("bvKm").textContent = "-";
+  $("bvMin").textContent = "-";
+  $("bvArr").textContent = "-";
+  $("bvSteps").innerHTML = "";
+  $("bvSheet").classList.remove("open");
   ovOpen(ov);
+  try { screen.orientation.unlock(); } catch (e) {}
 
   const L = await loadMap();
   if (!stack.includes(ov)) return;
-  if (bvMap) { bvMap.remove(); bvMap = null; }
-  clearInterval(bvTimer);
-  const target = { lat: b.lat, lng: b.lng };
-  bvMap = L.map("bvMap", { zoomControl: true, tap: true }).setView([b.lat, b.lng], 16);
+  bvStop();
+  bvMap = L.map("bvMap", { zoomControl: false, tap: true, zoomSnap: 0.5 }).setView([b.lat, b.lng], 16);
+  L.control.zoom({ position: "topleft" }).addTo(bvMap);
   tiles(L).addTo(bvMap);
   const map = bvMap;
-  L.marker([b.lat, b.lng], { icon: dotIcon(L, "#e03a3a") }).addTo(map).bindPopup(`<b>${esc(b.name)}</b><br>${esc(b.address)}`).openPopup();
+  L.marker([b.lat, b.lng], { icon: pinIcon(L, b), riseOnHover: true }).addTo(map).bindPopup(`<b>${esc(b.name)}</b><br>${esc(b.address)}`);
   setTimeout(() => map.invalidateSize(), 350);
+  bvFit = () => map.setView([b.lat, b.lng], 16, { animate: true });
 
-  if (!navigator.geolocation) { $("bvMsg").textContent = t("bv.noloc"); return; }
-  navigator.geolocation.getCurrentPosition(async pos => {
-    if (bvMap !== map) return;
-    const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    L.marker([me.lat, me.lng], { icon: dotIcon(L, "#2f7bff") }).addTo(map).bindTooltip(t("bv.you"));
-    const r = await routeTo(me, target);
-    if (bvMap !== map) return;
-    $("bvMsg").textContent = t("bv.dist", { km: r.km.toFixed(1), min: r.min });
-    const line = L.polyline([], { color: "#e03a3a", weight: 6, opacity: 0.95, className: "route" }).addTo(map);
-    const step = Math.max(1, Math.ceil(r.pts.length / 70));
-    let k = 0;
-    bvTimer = setInterval(() => {
-      k = Math.min(r.pts.length, k + step);
-      line.setLatLngs(r.pts.slice(0, k));
-      if (k >= r.pts.length) clearInterval(bvTimer);
-    }, 28);
-    map.fitBounds(L.latLngBounds([[me.lat, me.lng], [b.lat, b.lng]]).pad(0.25));
-  }, () => {
-    if (bvMap === map) $("bvMsg").textContent = t("bv.noloc");
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  const me = await locate(true);
+  if (bvMap !== map) return;
+  if (!me) { $("bvMsg").textContent = t("bv.noloc"); return; }
+  L.marker([me.lat, me.lng], { icon: meIcon(L), zIndexOffset: 500 }).addTo(map).bindTooltip(t("bv.you"));
+  const r = await routeTo(me, { lat: b.lat, lng: b.lng });
+  if (bvMap !== map) return;
+
+  $("bvMsg").textContent = t("bv.dist", { km: r.km.toFixed(1), min: r.min }) + (me.exact ? "" : " · " + t("nb.approx"));
+  $("bvKm").textContent = fmtKm(r.km);
+  $("bvMin").textContent = fmtMin(r.min);
+  $("bvArr").textContent = arriveAt(r.min);
+  $("bvDir").href = `https://www.google.com/maps/dir/?api=1&origin=${me.lat},${me.lng}&destination=${b.lat},${b.lng}&travelmode=driving`;
+  if (ph.length) $("bvWa").href = `https://wa.me/${waNum(ph[0])}?text=${encodeURIComponent(x("wamsg") + " https://maps.google.com/?q=" + me.lat + "," + me.lng)}`;
+  $("bvSteps").innerHTML = r.steps.map(s => `<li><i class="fa-solid ${stepIcon(s)}"></i><span>${esc(stepText(s))}</span><em>${s.m.type === "arrive" ? "" : fmtDist(s.d)}</em></li>`).join("");
+
+  const ll = r.pts;
+  const casing = L.polyline([], { color: "#fff", weight: 11, opacity: 0.95, lineCap: "round", lineJoin: "round" }).addTo(map);
+  const line = L.polyline([], { color: "#1a73e8", weight: 7, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(map);
+  const flow = L.polyline([], { color: "#fff", weight: 2.5, opacity: 0.9, dashArray: "2 14", className: "flow" }).addTo(map);
+  const inc = Math.max(1, Math.ceil(ll.length / 60));
+  let k = 0;
+  bvTimer = setInterval(() => {
+    k = Math.min(ll.length, k + inc);
+    const part = ll.slice(0, k);
+    casing.setLatLngs(part);
+    line.setLatLngs(part);
+    flow.setLatLngs(part);
+    if (k >= ll.length) { clearInterval(bvTimer); startVehicle(L, map, ll); }
+  }, 28);
+  const bounds = L.latLngBounds([[me.lat, me.lng], [b.lat, b.lng]]).pad(0.2);
+  map.fitBounds(bounds, fitPad());
+  bvFit = () => map.fitBounds(bounds, fitPad());
 }
 
 $("bvBack").onclick = back;
-$("bv").addEventListener("ovclose", () => {
-  clearInterval(bvTimer);
-  if (bvMap) { bvMap.remove(); bvMap = null; }
-});
+$("bv").addEventListener("ovclose", bvStop);
 $("bvRep").onclick = () => openReport($("bvRep").dataset.id);
+$("bvGrab").onclick = () => $("bvSheet").classList.toggle("open");
+$("bvCenter").onclick = () => { if (bvFit) bvFit(); };
+["resize", "orientationchange"].forEach(ev => addEventListener(ev, () => { if (bvMap) setTimeout(() => bvMap.invalidateSize(), 200); }));
 
 let rec = null, chunks = [], stream = null, blob = null, recT = 0, recS = 0, kind = "stock", where = null, rpBranch = "";
+let actx = null, analyser = null, waveRaf = 0;
 
 const fmtT = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 
+function updateBar() {
+  const hasAudio = !!blob;
+  const hasText = $("rpText").value.trim().length > 0;
+  $("rpDel").hidden = !hasAudio;
+  $("rpSendT").textContent = hasAudio && hasText ? x("sendBoth") : hasAudio ? x("sendVoice") : x("sendMsg");
+  $("rpSend").classList.toggle("ready", hasAudio || hasText);
+}
+
+function stopWave() {
+  cancelAnimationFrame(waveRaf);
+  waveRaf = 0;
+  if (actx) { try { actx.close(); } catch (e) {} }
+  actx = null;
+  analyser = null;
+  $("micWave").hidden = true;
+}
+
+function drawWave() {
+  const cv = $("micWave");
+  const ctx = cv.getContext("2d");
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  cv.hidden = false;
+  const frame = () => {
+    if (!analyser) return;
+    analyser.getByteFrequencyData(data);
+    const w = cv.width;
+    const h = cv.height;
+    const bw = w / data.length;
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i] / 255;
+      const bh = Math.max(4, v * h);
+      ctx.fillStyle = `rgba(224,58,58,${0.35 + v * 0.65})`;
+      ctx.fillRect(i * bw + 2, (h - bh) / 2, bw - 4, bh);
+    }
+    waveRaf = requestAnimationFrame(frame);
+  };
+  frame();
+}
+
 function micReset() {
   clearInterval(recT);
+  stopWave();
   if (stream) stream.getTracks().forEach(z => z.stop());
   stream = null; rec = null; blob = null; chunks = [];
   $("mic").className = "mic";
@@ -409,6 +545,7 @@ function micReset() {
   $("micA").hidden = true;
   $("micA").removeAttribute("src");
   $("micR").hidden = true;
+  updateBar();
 }
 
 async function startRec() {
@@ -424,10 +561,19 @@ async function startRec() {
     stream.getTracks().forEach(z => z.stop());
     return toast("error", t("e.mic"));
   }
+  try {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = actx.createMediaStreamSource(stream);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 64;
+    src.connect(analyser);
+    drawWave();
+  } catch (e) { stopWave(); }
   chunks = [];
   rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   rec.onstop = () => {
     clearInterval(recT);
+    stopWave();
     stream.getTracks().forEach(z => z.stop());
     blob = new Blob(chunks, { type: rec.mimeType || type || "audio/webm" });
     $("mic").className = "mic done";
@@ -436,6 +582,7 @@ async function startRec() {
     $("micA").src = URL.createObjectURL(blob);
     $("micA").hidden = false;
     $("micR").hidden = false;
+    updateBar();
   };
   rec.start();
   recS = 0;
@@ -454,6 +601,11 @@ $("mic").onclick = () => {
   else if (!blob) startRec();
 };
 $("micR").onclick = () => { micReset(); startRec(); };
+$("rpDel").onclick = () => { micReset(); };
+$("rpText").addEventListener("input", () => {
+  try { localStorage.setItem("hs_draft", $("rpText").value); } catch (e) {}
+  updateBar();
+});
 
 $("rpTypes").querySelectorAll(".tp").forEach(b => b.onclick = () => {
   kind = b.dataset.k;
@@ -480,14 +632,22 @@ function openReport(branchId) {
   const b = branches.find(z => z.id === rpBranch);
   $("rpAt").hidden = !b;
   if (b) $("rpAt").textContent = t("rp.at", { b: b.name });
+  try {
+    const w = JSON.parse(localStorage.getItem("hs_who") || "{}");
+    if (!$("rpName").value && w.n) $("rpName").value = w.n;
+    if (!$("rpPhone").value && w.p) $("rpPhone").value = w.p;
+    if (!$("rpText").value) $("rpText").value = localStorage.getItem("hs_draft") || "";
+  } catch (e) {}
   $("rpForm").hidden = false;
   $("rpOk").hidden = true;
+  $("rpBar").hidden = false;
+  updateBar();
   if (!stack.includes($("rp"))) ovOpen($("rp"));
 }
 
 $("rpBack").onclick = back;
 $("rp").addEventListener("ovclose", micReset);
-$("rpNew").onclick = () => { micReset(); $("rpText").value = ""; $("rpForm").hidden = false; $("rpOk").hidden = true; };
+$("rpNew").onclick = () => { micReset(); $("rpText").value = ""; $("rpForm").hidden = false; $("rpOk").hidden = true; $("rpBar").hidden = false; updateBar(); };
 
 async function uploadAudio(b) {
   const mime = (b.type || "audio/webm").split(";")[0];
@@ -517,13 +677,14 @@ async function getIP() {
 
 $("rpSend").onclick = async () => {
   if (rec && rec.state === "recording") rec.stop();
+  await new Promise(r => setTimeout(r, 350));
   const name = $("rpName").value.trim();
   const phone = $("rpPhone").value.trim();
   const message = $("rpText").value.trim();
+  if (!message && !blob) return toast("error", t("e.empty"));
   if (name.length < 2) return toast("error", t("e.name"));
   if (!/^[0-9+\s-]{7,20}$/.test(phone)) return toast("error", t("e.phone"));
-  await new Promise(r => setTimeout(r, 250));
-  if (!message && !blob) return toast("error", t("e.empty"));
+  if (!navigator.onLine) return toast("error", x("offline"));
   showLoading(x("upl"));
   try {
     if (!where) { try { where = await getPos(8000); } catch (e) { where = null; } }
@@ -545,14 +706,17 @@ $("rpSend").onclick = async () => {
     const res = await fetch("/api/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json();
     if (j.ok) {
+      try { localStorage.setItem("hs_who", JSON.stringify({ n: name, p: phone })); localStorage.removeItem("hs_draft"); } catch (e) {}
       $("rpRef").textContent = j.ref;
       const rows = [];
       if (audioUrl) rows.push(`<div><i class="fa-solid fa-microphone"></i><span>${esc(x("voice"))}</span><b>${esc(x("sent"))}</b></div>`);
+      if (message) rows.push(`<div><i class="fa-solid fa-message"></i><span>${esc(t("menu.report"))}</span><b>${esc(x("sent"))}</b></div>`);
       rows.push(`<div><i class="fa-solid fa-location-dot"></i><span>${esc(x("addr"))}</span><b>${esc(address || x("noaddr"))}</b></div>`);
       rows.push(`<div><i class="fa-solid fa-network-wired"></i><span>${esc(x("ip"))}</span><b>${esc(ip || x("noaddr"))}</b></div>`);
       $("rpSum").innerHTML = rows.join("");
       $("rpForm").hidden = true;
       $("rpOk").hidden = false;
+      $("rpBar").hidden = true;
       $("rpOk").scrollIntoView({ block: "start" });
       $("rpText").value = "";
       micReset();
@@ -745,57 +909,85 @@ function shopUI() {
   sub.textContent = t(sub.dataset.i18n);
 }
 
+const nb = { token: 0, loc: null, addr: "", list: [], pick: 0 };
+
 function closeNearest() {
+  nb.token++;
   $("nb").hidden = true;
   if (!stack.length && !$("mnu").classList.contains("on")) document.body.classList.remove("lock");
 }
 
-function renderNearest(loc) {
-  const body = $("nbBody");
-  const list = loc ? branches.map(b => ({ b, d: km(loc, b) })).sort((a, c) => a.d - c.d) : [];
-  if (!list.length) {
-    body.innerHTML = `<p class="s">${esc(t("nb.none"))}</p><a class="bt" href="tel:08060767279"><i class="fa-solid fa-phone"></i>08060767279</a>`;
-    return;
-  }
-  const { b, d } = list[0];
+function renderNearest() {
+  const { loc, list, pick, addr } = nb;
+  const c = list[pick];
+  const b = c.b;
   const st = branchStatus(b);
   const ph = [b.phone, b.phone2, b.phone3].filter(Boolean);
-  body.innerHTML = `<div class="nbi"><img src="${esc(thumb(b.image, "l"))}" alt="${esc(b.name)}"></div>
+  const others = list.map((z, i) => (i === pick ? "" : `<button class="nbo" type="button" data-pick="${i}"><span>${esc(z.b.name)}</span><em>${fmtKm(z.r.km)} · ${fmtMin(z.r.min)}</em></button>`)).join("");
+  $("nbBody").innerHTML = `${addr ? `<div class="nbme"><i class="fa-solid fa-location-dot"></i><div><small>${esc(x("yourloc"))}</small><span>${esc(addr)}</span></div></div>` : ""}
+    <div class="nbi"><img src="${esc(thumb(b.image, "l"))}" alt="${esc(b.name)}"></div>
     <h4>${esc(b.name)}</h4>
     <p class="ad"><i class="fa-solid fa-location-dot"></i>${esc(b.address)}</p>
-    <div class="nbtags"><span class="nbd">${esc(t("nb.dist", { km: d.toFixed(1) }))}</span>${st ? `<span class="stt ${st}">${esc(t(st === "open" ? "br.open" : "br.closed"))}</span>` : ""}</div>
+    <div class="nbtags"><span class="nbd"><i class="fa-solid fa-route"></i> ${fmtKm(c.r.km)}</span><span class="nbd"><i class="fa-regular fa-clock"></i> ${fmtMin(c.r.min)}</span>${st ? `<span class="stt ${st}">${esc(t(st === "open" ? "br.open" : "br.closed"))}</span>` : ""}</div>
     ${loc.exact ? "" : `<p class="small">${esc(t("nb.approx"))}</p><button class="tp" id="nbExact" type="button"><i class="fa-solid fa-location-crosshairs"></i> ${esc(t("nb.exact"))}</button>`}
     ${ph.length ? `<div class="phs">${ph.map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("")}</div>` : ""}
-    <div class="btns"><button class="bt" id="nbMap" type="button" data-id="${esc(b.id)}"><i class="fa-solid fa-map-location-dot"></i><span>${esc(t("nb.view"))}</span></button></div>`;
+    <div class="btns"><button class="bt" id="nbMap" type="button" data-id="${esc(b.id)}"><i class="fa-solid fa-diamond-turn-right"></i><span>${esc(x("routeBtn"))}</span></button></div>
+    ${others ? `<h5>${esc(x("others"))}</h5><div class="nbmore">${others}</div>` : ""}`;
 }
 
-async function showNearest() {
+async function showNearest(exact) {
+  const token = ++nb.token;
+  const body = $("nbBody");
   $("nb").hidden = false;
   document.body.classList.add("lock");
-  $("nbBody").innerHTML = `<p class="nbwait"><i class="fa-solid fa-location-crosshairs fa-beat"></i> ${esc(t("nb.finding"))}</p>`;
+  $("nbSub").textContent = shopOpen ? x("nbOpen") : t("nb.sub");
+  if (!branches.length) {
+    body.innerHTML = `<p class="nbnone"><i class="fa-solid fa-store-slash"></i><span>${esc(x("nobr"))}</span></p>`;
+    return;
+  }
+  body.innerHTML = `<p class="nbwait"><i class="fa-solid fa-location-crosshairs fa-beat"></i> ${esc(t("nb.finding"))}</p>`;
+  if (exact) userLoc = null;
   const loc = await locate(true);
+  if (token !== nb.token || $("nb").hidden) return;
+  if (!loc) {
+    body.innerHTML = `<p class="nbnone"><i class="fa-solid fa-location-crosshairs"></i><span>${esc(x("noloc"))}</span></p><button class="tp" id="nbExact" type="button">${esc(x("retry"))}</button>`;
+    return;
+  }
+  const top = branches.map(b => ({ b, d: km(loc, b) })).sort((a, c) => a.d - c.d).slice(0, 3);
+  const [routes, addr] = await Promise.all([
+    Promise.all(top.map(c => routeTo(loc, c.b))),
+    loc.exact ? getAddress(loc.lat, loc.lng) : Promise.resolve("")
+  ]);
+  if (token !== nb.token || $("nb").hidden) return;
+  const list = top.map((c, i) => ({ ...c, r: routes[i] })).sort((a, c) => a.r.min - c.r.min || a.d - c.d);
+  Object.assign(nb, { loc, addr, list, pick: 0 });
   updateDistances();
-  if (!$("nb").hidden) renderNearest(loc);
+  nearestId = list[0].b.id;
+  renderBranches();
+  renderNearest();
 }
 
 $("nbX").addEventListener("click", closeNearest);
 $("nb").addEventListener("click", e => { if (e.target === $("nb")) closeNearest(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("nb").hidden) closeNearest(); });
-$("nbBody").addEventListener("click", async e => {
-  if (e.target.closest("#nbMap")) {
-    const id = e.target.closest("#nbMap").dataset.id;
+$("nbBody").addEventListener("click", e => {
+  const map = e.target.closest("#nbMap");
+  if (map) {
+    const id = map.dataset.id;
     closeNearest();
     openBranch(id);
+    return;
   }
-  if (e.target.closest("#nbExact")) {
-    userLoc = null;
-    $("nbBody").innerHTML = `<p class="nbwait"><i class="fa-solid fa-location-crosshairs fa-beat"></i> ${esc(t("nb.finding"))}</p>`;
-    const loc = await locate(true);
-    updateDistances();
-    if (!$("nb").hidden) renderNearest(loc);
-  }
+  if (e.target.closest("#nbExact")) { showNearest(true); return; }
+  const pk = e.target.closest("[data-pick]");
+  if (pk) { nb.pick = Number(pk.dataset.pick); renderNearest(); }
 });
-$("cbNear").addEventListener("click", showNearest);
+$("cbNear").addEventListener("click", () => showNearest());
+$("heroNear").addEventListener("click", () => showNearest());
+$("nearBtn").addEventListener("click", () => showNearest());
+
+addEventListener("offline", () => toast("error", x("offline")));
+addEventListener("online", () => toast("ok", x("online")));
 
 async function loadShop() {
   const row = must(await supabase.from("settings").select("value").eq("key", "shop_open").maybeSingle());
