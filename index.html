@@ -94,7 +94,7 @@
 
 <main id="main">
   <section class="hero" id="top">
-    <canvas class="net" id="netHero" aria-hidden="true"></canvas><div class="blob b1"></div><div class="blob b2"></div>
+    <img class="hbg" src="https://i.imgur.com/7W27AxE.png" alt="" fetchpriority="high" decoding="async"><canvas class="net" id="netHero" aria-hidden="true"></canvas><div class="blob b1"></div><div class="blob b2"></div>
     <div class="wrap hgrid">
       <div class="hcopy">
         <span class="chipw"><i></i><span data-i18n="hero.welcome">Welcome to</span></span>
@@ -107,6 +107,7 @@
         </div>
         <div class="btns">
           <a class="bt" href="#shop" data-go><i class="fa-solid fa-basket-shopping"></i><span><span class="en">Shop now</span><span class="ha">Fara siyayya</span></span></a>
+          <button class="bt nearbtn" type="button" id="heroNear"><i class="fa-solid fa-location-crosshairs"></i><span><span class="en">Nearest branch</span><span class="ha">Reshe mafi kusa</span></span></button>
           <a class="bt ghost" href="#branches" data-go><i class="fa-solid fa-location-dot"></i><span data-i18n="hero.cta1">Find a branch</span></a>
           <a class="bt wa" href="https://wa.me/2348060767279?text=Hello%20Hamstore%2C%20I%20would%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp</span></a>
           <button class="bt red" type="button" id="heroReport"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="hero.cta2">Send a report</span></button>
@@ -139,7 +140,7 @@
 
   <div class="tkwrap" aria-hidden="true"><div class="s-ticker"><div class="tk-track" id="tkTrack"></div></div></div>
 
-  <div class="wrap sbwrap"><label class="csearch"><i class="fa-solid fa-magnifying-glass"></i><input id="catSearch" type="search" autocomplete="off" placeholder="Search"></label></div>
+  <div class="wrap sbwrap"><label class="csearch"><i class="fa-solid fa-magnifying-glass"></i><input id="catSearch" type="search" autocomplete="off" placeholder="Search"></label><button class="bt nearbtn" type="button" id="nearBtn"><i class="fa-solid fa-location-crosshairs"></i><span><span class="en">Check nearest branch</span><span class="ha">Duba reshe mafi kusa</span></span></button></div>
 
   <section class="sec s-found" id="found" hidden>
     <div class="wrap">
@@ -395,23 +396,34 @@
   <div class="nbc">
     <button class="nbx" id="nbX" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     <h3 id="nbT" data-i18n="nb.title">Your nearest branch</h3>
-    <p class="s" data-i18n="nb.sub">Online buying is closed. Please go to this branch.</p>
+    <p class="s" id="nbSub"></p>
     <div id="nbBody"></div>
   </div>
 </div>
 
-<div class="ov" id="bv" role="dialog" aria-modal="true" aria-labelledby="bvTitle">
-  <div class="ovbar"><button class="bk" id="bvBack" type="button" data-i18n-aria="bv.back" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button><b id="bvTitle"></b><span class="stt" id="bvSt"></span></div>
-  <div class="ovbody">
-    <div class="bvh"><img id="bvImg" alt=""><div class="ad" id="bvAd"></div></div>
-    <div class="bvb"><div class="trk"><i class="a fa-solid fa-person"></i><i class="m fa-solid fa-truck-fast"></i><i class="b fa-solid fa-store"></i></div><p id="bvMsg"></p><small id="bvSub"></small></div>
-    <div class="bvmap" id="bvMap"></div>
-    <div class="bvi">
-      <p class="hint" data-i18n="bv.zoom">Pinch with two fingers or use + and − to zoom the map.</p>
-      <h4 data-i18n="bv.phones">Phone numbers</h4>
+<div class="ov mapov" id="bv" role="dialog" aria-modal="true" aria-labelledby="bvTitle">
+  <div class="bvmap" id="bvMap"></div>
+  <button class="mclose" id="bvBack" type="button" data-i18n-aria="bv.back" aria-label="Close map"><i class="fa-solid fa-xmark"></i></button>
+  <div class="mtop" id="bvMsg"></div>
+  <div class="sheetwrap">
+    <div class="mctl"><button class="mb" id="bvCenter" type="button" aria-label="Recenter"><i class="fa-solid fa-location-crosshairs"></i></button></div>
+    <div class="sheet" id="bvSheet">
+      <button class="grab" id="bvGrab" type="button" aria-label="Expand"></button>
+      <div class="shh"><img id="bvImg" alt=""><div><h3 id="bvTitle"></h3><span class="stt" id="bvSt"></span><p id="bvAd"></p></div></div>
+      <div class="eta">
+        <div><small><span class="en">Distance</span><span class="ha">Nisa</span></small><b id="bvKm">-</b></div>
+        <div><small><span class="en">Time</span><span class="ha">Lokaci</span></small><b id="bvMin">-</b></div>
+        <div><small><span class="en">Arrive</span><span class="ha">Isowa</span></small><b id="bvArr">-</b></div>
+      </div>
+      <p class="hrs" id="bvHr"></p>
       <div class="phs" id="bvPh"></div>
-      <p id="bvHr"></p>
-      <div class="btns"><a class="bt" id="bvDir" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i><span data-i18n="bv.dir">Open in Google Maps</span></a><button class="bt red" id="bvRep" type="button"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="br.report">Report</span></button></div>
+      <div class="btns">
+        <a class="bt" id="bvDir" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i><span>Google Maps</span></a>
+        <a class="bt wa" id="bvWa" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i><span>WhatsApp</span></a>
+        <button class="bt red" id="bvRep" type="button"><i class="fa-solid fa-microphone-lines"></i><span data-i18n="br.report">Report</span></button>
+      </div>
+      <h5 class="sth"><span class="en">Directions</span><span class="ha">Jagorar hanya</span></h5>
+      <ol class="steps" id="bvSteps"></ol>
     </div>
   </div>
 </div>
@@ -432,6 +444,7 @@
         <button class="mic" id="mic" type="button" aria-label="Record"><i class="fa-solid fa-microphone"></i></button>
         <div class="tm" id="micT">0:00</div>
         <p class="s" id="micS" data-i18n="rp.mic0">Tap to record a voice note</p>
+        <canvas class="wave" id="micWave" width="280" height="56" hidden></canvas>
         <audio id="micA" controls hidden></audio>
         <button class="tp" id="micR" type="button" hidden data-i18n="rp.redo">Record again</button>
       </div>
@@ -439,7 +452,6 @@
       <div class="fld"><input id="rpName" type="text" maxlength="80" autocomplete="name" data-i18n-ph="rp.name" placeholder="Your name"></div>
       <div class="fld"><input id="rpPhone" type="tel" autocomplete="tel" data-i18n-ph="rp.phone" placeholder="Phone number"></div>
       <div class="locr"><button class="tp" id="rpLoc" type="button"><i class="fa-solid fa-location-crosshairs"></i> <span data-i18n="rp.loc">Share my location</span></button><span class="stt2" id="rpLocS"></span></div>
-      <button class="bt red" id="rpSend" type="button"><i class="fa-solid fa-paper-plane"></i><span data-i18n="rp.send">Send report</span></button>
     </div>
     <div class="rpw okp" id="rpOk" hidden>
       <div class="mk"><i class="fa-solid fa-check"></i></div>
@@ -449,6 +461,10 @@
       <div class="sum" id="rpSum"></div>
       <button class="bt" id="rpNew" type="button"><i class="fa-solid fa-plus"></i><span data-i18n="rp.new">Send another</span></button>
     </div>
+  </div>
+  <div class="rpbar" id="rpBar">
+    <button class="rdel" id="rpDel" type="button" hidden><i class="fa-solid fa-trash"></i><span><span class="en">Delete voice</span><span class="ha">Goge murya</span></span></button>
+    <button class="bt red" id="rpSend" type="button"><i class="fa-solid fa-paper-plane"></i><span id="rpSendT"></span></button>
   </div>
 </div>
 
