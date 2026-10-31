@@ -1,4 +1,4 @@
-const LOGO = "https://i.imgur.com/UXH5q5w.png";
+const LOGO = "https://i.imgur.com/aJCiczp.png";
 
 const css = `
 #hsLoader{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(5,14,10,.94);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .25s}
