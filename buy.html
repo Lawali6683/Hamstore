@@ -3,9 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#06130d">
+<meta name="theme-color" content="#f7f4ec">
 <title data-i18n="t.buy">Your order - Hamstore</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lobster&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
 <link rel="stylesheet" href="index.css">
@@ -26,8 +29,14 @@
     <h1 data-i18n="buy.title">Your order</h1>
     <p class="s" data-i18n="buy.sub">Check your goods, pay, then send us the proof.</p>
 
+    <ol class="flow3" id="flow3">
+      <li class="on"><i>1</i><span class="en">Review</span><span class="ha">Duba kaya</span></li>
+      <li><i>2</i><span class="en">Pay</span><span class="ha">Biya</span></li>
+      <li><i>3</i><span class="en">Proof</span><span class="ha">Shaida</span></li>
+    </ol>
+
     <section class="pn dn" id="closedBox" hidden>
-      <i class="fa-solid fa-store-slash" style="font-size:40px;color:#ffb44d"></i>
+      <i class="fa-solid fa-store-slash big amber"></i>
       <p data-i18n="buy.closed">Online buying is closed right now. Please visit your nearest branch or call us.</p>
       <a class="bt" href="index.html"><i class="fa-solid fa-store"></i><span data-i18n="buy.shop">Go to the shop</span></a>
     </section>
@@ -38,40 +47,63 @@
     </section>
 
     <section class="pn dn" id="emptyBox" hidden>
-      <i class="fa-solid fa-bag-shopping" style="font-size:40px;color:#7fe0aa"></i>
+      <i class="fa-solid fa-bag-shopping big green"></i>
       <p data-i18n="buy.empty">You have not chosen any product yet.</p>
+      <div class="lastbox" id="lastBox" hidden>
+        <small><span class="en">Your last order code</span><span class="ha">Lambar odarka ta ƙarshe</span></small>
+        <b id="lastCode"></b>
+        <button class="bt red" id="lastPdf" type="button"><i class="fa-solid fa-file-pdf"></i><span data-i18n="buy.pdf">Download PDF</span></button>
+      </div>
       <a class="bt" href="index.html"><i class="fa-solid fa-store"></i><span data-i18n="buy.shop">Go to the shop</span></a>
+    </section>
+
+    <section class="pn dn" id="noAccBox" hidden>
+      <i class="fa-solid fa-building-columns big amber"></i>
+      <h2 class="en">Payment account not ready</h2>
+      <h2 class="ha">Asusun biyan kuɗi bai shirya ba</h2>
+      <p class="en">We cannot take online orders right now because no payment account is set. Please call us or visit a branch.</p>
+      <p class="ha">Ba za mu karɓi oda ta intanet yanzu ba saboda ba a saka asusun biyan kuɗi ba. Ka kira mu ko ka ziyarci reshe.</p>
+      <a class="bt" id="noAccCall" href="tel:08060767279"><i class="fa-solid fa-phone"></i>08060767279</a>
     </section>
 
     <section class="pn" id="payBox" hidden>
       <h2 style="margin:0 0 6px" data-i18n="buy.acc">Pay to this account</h2>
       <p class="s" data-i18n="buy.accnote">Send the exact total, then upload a screenshot of your payment.</p>
-      <div id="accs" style="display:grid;gap:12px;margin-top:12px"></div>
+      <div class="payamt"><small><span class="en">Amount to send</span><span class="ha">Kuɗin da za ka tura</span></small><b id="payAmt"></b></div>
+      <div id="accs" class="accs"></div>
     </section>
 
     <section class="pn" id="formBox" hidden>
-      <form id="form" novalidate style="display:grid;gap:14px">
+      <form id="form" novalidate class="bform">
         <div class="fld"><input id="bName" type="text" maxlength="80" autocomplete="name" data-i18n-ph="buy.name" placeholder="Your full name"></div>
         <div class="fld"><input id="bPhone" type="tel" autocomplete="tel" data-i18n-ph="buy.phone" placeholder="Phone number"></div>
         <div class="fld"><textarea id="bAddr" maxlength="200" data-i18n-ph="buy.addr" placeholder="Where should we deliver?"></textarea></div>
+        <div class="locr"><button class="tp" id="bLoc" type="button"><i class="fa-solid fa-location-crosshairs"></i> <span class="en">Use my current location</span><span class="ha">Yi amfani da wurina yanzu</span></button><span class="stt2" id="bLocS"></span></div>
         <div class="shotp">
-          <label class="bt" style="justify-content:center;cursor:pointer;background:linear-gradient(135deg,#2f6bff,#1f3fa8)"><i class="fa-solid fa-image"></i><span data-i18n="buy.pick">Choose screenshot</span><input id="bFile" type="file" accept="image/*" hidden></label>
+          <label class="bt blue"><i class="fa-solid fa-image"></i><span data-i18n="buy.pick">Choose screenshot</span><input id="bFile" type="file" accept="image/*" hidden></label>
+          <div class="upst" id="bUp" hidden></div>
           <img id="bPrev" alt="" hidden>
         </div>
-        <button class="bt red" type="submit" style="justify-content:center"><i class="fa-solid fa-check"></i><span data-i18n="buy.submit">I have paid</span></button>
+        <button class="bt red wide" id="bSubmit" type="submit"><i class="fa-solid fa-check"></i><span data-i18n="buy.submit">I have paid</span></button>
       </form>
     </section>
 
     <section class="pn dn" id="done" hidden>
-      <div class="okp" style="padding:10px 0"><div class="mk"><i class="fa-solid fa-check"></i></div></div>
+      <div class="okp"><div class="mk"><i class="fa-solid fa-check"></i></div></div>
       <h2 style="margin:0" data-i18n="buy.doneT">Order received</h2>
       <p class="s" data-i18n="buy.doneP">Please wait for your goods. Save this code. You can take a screenshot or download the PDF.</p>
       <div class="cd" id="dCode"></div>
+      <p class="warn"><i class="fa-solid fa-shield-halved"></i><span class="en">Give this code only to the delivery driver when your goods arrive.</span><span class="ha">Ka ba direba wannan lambar ne kawai idan kayanka sun iso.</span></p>
+      <div class="qrs">
+        <figure><div id="qrDriver"></div><figcaption><span class="en">Driver scan</span><span class="ha">Direba ya duba</span></figcaption></figure>
+        <figure><div id="qrSite"></div><figcaption>hamstore.com.ng</figcaption></figure>
+      </div>
       <div class="btns" style="justify-content:center">
         <button class="bt" id="dCopy" type="button"><i class="fa-regular fa-copy"></i><span data-i18n="buy.copyc">Copy code</span></button>
         <button class="bt red" id="dPdf" type="button"><i class="fa-solid fa-file-pdf"></i><span data-i18n="buy.pdf">Download PDF</span></button>
+        <button class="bt wa" id="dShare" type="button"><i class="fa-solid fa-share-nodes"></i><span class="en">Share slip</span><span class="ha">Raba slip</span></button>
       </div>
-      <a class="bt" href="index.html" style="background:transparent;border:2px solid #7fe0aa;box-shadow:none"><i class="fa-solid fa-store"></i><span data-i18n="buy.shop">Go to the shop</span></a>
+      <a class="bt ghost" href="index.html"><i class="fa-solid fa-store"></i><span data-i18n="buy.shop">Go to the shop</span></a>
     </section>
   </div>
 </main>
