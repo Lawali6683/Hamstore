@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Deliveries</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="adminrep.css">
+</head>
+<body>
+<main class="wrap ar">
+  <div class="topline">
+    <h2><span class="livedot"></span>Deliveries and slips</h2>
+    <div class="tools">
+      <button class="ghost" id="accBtn" type="button"><i class="fa-solid fa-building-columns"></i>Payment accounts</button>
+      <button class="ghost" id="alerts" type="button"></button>
+    </div>
+  </div>
+
+  <div class="ar-warn" id="noAcc" hidden><i class="fa-solid fa-triangle-exclamation"></i><span>No payment account is set. Customers cannot order online until you add one.</span></div>
+
+  <div class="ar-stats">
+    <div class="s new"><i class="fa-solid fa-truck-fast"></i><b id="sPend">0</b><small>Waiting for delivery</small></div>
+    <div class="s"><i class="fa-solid fa-circle-check"></i><b id="sToday">0</b><small>Delivered today</small></div>
+    <div class="s"><i class="fa-solid fa-naira-sign"></i><b id="sValue">0</b><small>Pending value</small></div>
+    <div class="s"><i class="fa-solid fa-box"></i><b id="sAll">0</b><small>All loaded</small></div>
+  </div>
+
+  <label class="ar-search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" type="search" autocomplete="off" placeholder="Search code, name, phone or driver"></label>
+
+  <div class="chips" id="filters">
+    <button class="chip on" data-f="pending">Pending <b>0</b></button>
+    <button class="chip" data-f="delivered">Delivered <b>0</b></button>
+    <button class="chip" data-f="all">All <b>0</b></button>
+  </div>
+
+  <div class="rg" id="list"></div>
+  <div class="empty" id="empty" hidden><i class="fa-solid fa-truck" style="font-size:28px"></i><p>Nothing here yet.</p></div>
+  <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="admindeliveries.js"></script>
+</body>
+</html>
