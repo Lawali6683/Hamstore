@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f4ec">
+<meta name="robots" content="noindex,nofollow">
+<title>Hamstore Driver</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lobster&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
+<link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="driver.css">
+</head>
+<body data-device="phone">
+<header class="hd solid">
+  <a class="hlogo" href="index.html"><img src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore"></a>
+  <div class="lang" id="langSw" data-on="en" role="group" aria-label="Language">
+    <span class="thumb"></span>
+    <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+    <button type="button" data-lang-btn="ha" aria-pressed="false">HA</button>
+  </div>
+</header>
+
+<main class="pg drv">
+  <div class="wrap">
+    <div class="dhead">
+      <span class="oval"><span class="en">Driver</span><span class="ha">Direba</span></span>
+      <h1><span class="en">Confirm a delivery</span><span class="ha">Tabbatar da isar da kaya</span></h1>
+      <p class="s"><span class="en">Scan the QR code on the customer's slip, or type the order code he gives you.</span><span class="ha">Ka duba QR code ɗin da ke cikin slip ɗin kwastoma, ko ka rubuta lambar oda da zai ba ka.</span></p>
+    </div>
+
+    <section class="pn" id="finder">
+      <div class="dtabs">
+        <button type="button" id="tabScan" class="on"><i class="fa-solid fa-qrcode"></i><span class="en">Scan QR</span><span class="ha">Duba QR</span></button>
+        <button type="button" id="tabType"><i class="fa-solid fa-keyboard"></i><span class="en">Type code</span><span class="ha">Rubuta lamba</span></button>
+      </div>
+      <div id="scanBox">
+        <div class="vwrap">
+          <video id="vid" playsinline muted></video>
+          <div class="vframe"><i></i><i></i><i></i><i></i><u></u></div>
+          <div class="vhint" id="vHint"><i class="fa-solid fa-camera"></i></div>
+        </div>
+        <div class="scanrow">
+          <button class="bt" id="scanStart" type="button"><i class="fa-solid fa-camera"></i><span class="en">Start camera</span><span class="ha">Kunna kyamara</span></button>
+          <label class="bt ghost"><i class="fa-solid fa-image"></i><span class="en">From photo</span><span class="ha">Daga hoto</span><input id="scanFile" type="file" accept="image/*" hidden></label>
+        </div>
+        <p class="s" id="scanMsg"></p>
+      </div>
+      <form id="typeBox" hidden autocomplete="off">
+        <div class="fld"><input id="codeIn" type="text" maxlength="40" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="HS-XXXXXX"></div>
+        <button class="bt wide" type="submit"><i class="fa-solid fa-magnifying-glass"></i><span class="en">Open order</span><span class="ha">Buɗe oda</span></button>
+      </form>
+    </section>
+
+    <section id="result" hidden></section>
+  </div>
+</main>
+
+<div class="dlg" id="dlg" hidden></div>
+<div class="zoom" id="zoom" hidden><button type="button" id="zoomX" aria-label="Close"><i class="fa-solid fa-xmark"></i></button><img id="zoomImg" alt=""></div>
+
+<script type="module" src="driver.js"></script>
+</body>
+</html>
