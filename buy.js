@@ -1,6 +1,7 @@
 import { supabase, must } from "./supabase.js";
 import { showLoading, hideLoading } from "./loading.js";
-import { t, getLang, initLang, esc, naira, telHref, thumb, toast, compress, uploadToImgur, setDevice, PHONE_MAIN } from "./pub.js";
+import { t, getLang, initLang, esc, naira, telHref, thumb, toast, setDevice, PHONE_MAIN } from "./pub.js";
+import { compress, uploadToImgur } from "./imgfast.js";
 import { downloadSlip, shareSlip, qrCanvas, driverUrl, SITE_URL } from "./slip.js";
 
 const $ = id => document.getElementById(id);
@@ -183,7 +184,7 @@ $("bFile").addEventListener("change", async e => {
     $("bPrev").src = shot.dataUrl;
     $("bPrev").hidden = false;
     setStep(3);
-    const p = uploadToImgur(shot.base64);
+    const p = uploadToImgur(shot.blob);
     upP = p;
     p.then(link => { if (upP === p) { shotLink = link; setUp("ok"); } }).catch(() => { if (upP === p) { shotLink = ""; setUp("fail"); } });
   } catch (err) {
@@ -251,7 +252,7 @@ $("form").addEventListener("submit", async e => {
     let link = shotLink;
     if (!link) {
       try { link = await upP; } catch (err) { link = ""; }
-      if (!link) link = await uploadToImgur(shot.base64);
+      if (!link) link = await uploadToImgur(shot.blob);
     }
     const ctl = new AbortController();
     const tm = setTimeout(() => ctl.abort(), 30000);
