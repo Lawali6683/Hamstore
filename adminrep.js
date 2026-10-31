@@ -1,6 +1,7 @@
 import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
-import { toast, confirmBox, openModal, loadMap, tiles, dot, nearest, telHref, esc, ago } from "./allui.js";
+import { toast, confirmBox, openModal, nearest, telHref, esc, ago } from "./allui.js";
+import { openRouteMap } from "./hsmap.js";
 import { showLoading, hideLoading } from "./loading.js";
 
 await requireAdmin("rep");
@@ -17,7 +18,6 @@ let fetched = 0;
 let filter = "new";
 let term = "";
 let unread = 0;
-let adminPos = null;
 let soundOn = localStorage.getItem("hs_snd") !== "0";
 let ac = null;
 
@@ -46,7 +46,6 @@ const hav = (a, b) => {
   return 2 * R * Math.asin(Math.sqrt(h));
 };
 const fmtKm = n => (n < 10 ? n.toFixed(1) : String(Math.round(n))) + " km";
-const fmtMin = m => (m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m");
 const waNum = p => {
   const d = String(p || "").replace(/\D/g, "");
   if (d.startsWith("234")) return d;
@@ -212,151 +211,14 @@ const audioPath = u => {
   return m ? decodeURIComponent(m[1].split("?")[0]) : "";
 };
 
-async function osrm(a, b) {
-  try {
-    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`);
-    const j = await r.json();
-    const rt = j.routes && j.routes[0];
-    if (!rt) throw new Error("none");
-    return { pts: rt.geometry.coordinates.map(c => [c[1], c[0]]), km: rt.distance / 1000, min: Math.max(1, Math.round(rt.duration / 60)), est: false };
-  } catch (e) {
-    const d = hav(a, b);
-    return { pts: [[a.lat, a.lng], [b.lat, b.lng]], km: d, min: Math.max(1, Math.round((d / 30) * 60)), est: true };
-  }
-}
-
-function getMe() {
-  return new Promise(res => {
-    if (!navigator.geolocation) return res(adminPos);
-    navigator.geolocation.getCurrentPosition(p => {
-      adminPos = { lat: p.coords.latitude, lng: p.coords.longitude };
-      res(adminPos);
-    }, () => res(adminPos), { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
-  });
-}
-
-const popShop = b => `<div class="ar-pop">${safeUrl(b.image) ? `<img src="${esc(b.image)}" alt="">` : ""}<b>${esc(b.name)}</b><span>${esc(b.address || "")}</span>${phonesOf(b).map(p => `<a href="${telHref(p)}">${esc(p)}</a>`).join("")}</div>`;
-
-function infoShop(b, d) {
-  const ph = phonesOf(b);
-  return `<div class="ar-info shop">
-    ${safeUrl(b.image) ? `<img src="${esc(b.image)}" alt="${esc(b.name)}">` : ""}
-    <div><span class="lbl">Shop</span><h4>${esc(b.name)}</h4>
-    <p><i class="fa-solid fa-location-dot"></i>${esc(b.address || "")}</p>
-    ${b.opens && b.closes ? `<p><i class="fa-regular fa-clock"></i>${esc(b.opens)} - ${esc(b.closes)}</p>` : ""}
-    ${d != null ? `<p><i class="fa-solid fa-route"></i>${fmtKm(d)} from customer</p>` : ""}
-    <div class="calls">${ph.map(p => `<a class="ab call" href="${telHref(p)}"><i class="fa-solid fa-phone"></i>${esc(p)}</a>`).join("")}</div></div></div>`;
-}
-
-function infoCust(r) {
-  return `<div class="ar-info cust"><div><span class="lbl">Customer</span><h4>${esc(r.name)}</h4>
-    <p><i class="fa-solid fa-phone"></i>${esc(r.phone)}</p>
-    ${r.address ? `<p><i class="fa-solid fa-location-dot"></i>${esc(r.address)}</p>` : ""}
-    <div class="calls"><a class="ab call" href="${telHref(r.phone)}"><i class="fa-solid fa-phone"></i>Call</a><a class="ab wa" href="https://wa.me/${waNum(r.phone)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp</a></div></div></div>`;
-}
-
-async function showRoute(r) {
+function showRoute(r) {
   const sh = shopFor(r);
-  const shop = sh ? sh.branch : null;
-  const pts = {};
-  if (hasPos(r)) pts.cust = { lat: r.lat, lng: r.lng };
-  if (shop) pts.shop = { lat: shop.lat, lng: shop.lng };
-  if (adminPos) pts.me = { ...adminPos };
-  const box = document.createElement("div");
-  box.className = "ar-mapmodal";
-  box.innerHTML = `<h3>${esc(r.name)}</h3>
-    <div class="ar-tabs" id="rt"></div>
-    <div class="ar-st" id="rs"></div>
-    <div class="map modalmap ar-mapbox" id="rm"></div>
-    <div class="ar-infos">${hasPos(r) ? infoCust(r) : ""}${shop ? infoShop(shop, sh.d) : ""}</div>
-    <div class="row"><a class="btn" id="rn" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i>Open in Google Maps</a><button class="ghost" id="rc" type="button">Close</button></div>`;
-  const close = openModal(box);
-  box.querySelector("#rc").onclick = close;
-  const L = await loadMap();
-  const first = pts.cust || pts.shop || pts.me;
-  const map = L.map(box.querySelector("#rm"), { zoomControl: true }).setView([first.lat, first.lng], 14);
-  tiles(L).addTo(map);
-  let meMarker = null;
-  let line = null;
-  let anim = 0;
-  let sel = "";
-  let lastDraw = 0;
-  if (pts.cust) L.marker([pts.cust.lat, pts.cust.lng], { icon: dot(L, "#e03a3a") }).addTo(map).bindPopup(`<b>${esc(r.name)}</b><br>${esc(r.address || r.phone)}`);
-  if (pts.shop) L.marker([pts.shop.lat, pts.shop.lng], { icon: dot(L, "#2fb36d") }).addTo(map).bindPopup(popShop(shop), { minWidth: 200 }).openPopup();
-  const setMe = () => {
-    if (!pts.me) return;
-    if (meMarker) meMarker.setLatLng([pts.me.lat, pts.me.lng]);
-    else meMarker = L.marker([pts.me.lat, pts.me.lng], { icon: dot(L, "#2f7bff") }).addTo(map).bindTooltip("You are here");
-  };
-  const defs = () => {
-    const d = [];
-    if (pts.me && pts.cust) d.push(["mc", "Me → Customer", pts.me, pts.cust]);
-    if (pts.me && pts.shop) d.push(["ms", "Me → Shop", pts.me, pts.shop]);
-    if (pts.cust && pts.shop) d.push(["cs", "Customer → Shop", pts.cust, pts.shop]);
-    return d;
-  };
-  const paintTabs = () => {
-    const d = defs();
-    box.querySelector("#rt").innerHTML = d.map(x => `<button type="button" class="${x[0] === sel ? "on" : ""}" data-k="${x[0]}">${x[1]}</button>`).join("");
-  };
-  const draw = async () => {
-    const d = defs();
-    const cur = d.find(x => x[0] === sel) || d[0];
-    const st = box.querySelector("#rs");
-    if (!cur) {
-      st.innerHTML = `<div class="note"><i class="fa-solid fa-location-crosshairs"></i>Allow location access to see the route from where you are.</div>`;
-      map.fitBounds(L.latLngBounds(Object.values(pts).map(p => [p.lat, p.lng])).pad(0.3), { maxZoom: 16 });
-      return;
-    }
-    sel = cur[0];
-    lastDraw = Date.now();
-    paintTabs();
-    st.innerHTML = `<div class="note"><i class="fa-solid fa-spinner fa-spin"></i>Finding the road...</div>`;
-    const [, , a, b] = cur;
-    box.querySelector("#rn").href = `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lng}&destination=${b.lat},${b.lng}&travelmode=driving`;
-    const rt = await osrm(a, b);
-    if (!box.isConnected || sel !== cur[0]) return;
-    st.innerHTML = `<div><small>Distance</small><b>${fmtKm(rt.km)}</b></div><div><small>Drive time</small><b>${fmtMin(rt.min)}</b></div><div><small>Route</small><b>${rt.est ? "Straight line" : "By road"}</b></div>`;
-    clearInterval(anim);
-    if (line) map.removeLayer(line);
-    line = L.polyline([], { color: "#ffd166", weight: 6, opacity: 0.95 }).addTo(map);
-    const step = Math.max(1, Math.ceil(rt.pts.length / 60));
-    let k = 0;
-    anim = setInterval(() => {
-      k = Math.min(rt.pts.length, k + step);
-      line.setLatLngs(rt.pts.slice(0, k));
-      if (k >= rt.pts.length) clearInterval(anim);
-    }, 25);
-    map.fitBounds(L.latLngBounds([[a.lat, a.lng], [b.lat, b.lng]]).pad(0.25));
-  };
-  box.querySelector("#rt").addEventListener("click", e => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    sel = b.dataset.k;
-    draw();
+  const b = sh ? sh.branch : null;
+  openRouteMap({
+    title: r.name,
+    cust: hasPos(r) ? { lat: r.lat, lng: r.lng, name: r.name, address: r.address, phone: r.phone } : null,
+    shop: b ? { lat: b.lat, lng: b.lng, name: b.name, address: b.address, image: b.image, phones: phonesOf(b) } : null
   });
-  setMe();
-  await draw();
-  setTimeout(() => map.invalidateSize(), 250);
-  if (!pts.me) {
-    const m = await getMe();
-    if (m && box.isConnected) { pts.me = { ...m }; setMe(); sel = ""; await draw(); }
-  }
-  const wid = navigator.geolocation ? navigator.geolocation.watchPosition(p => {
-    const np = { lat: p.coords.latitude, lng: p.coords.longitude };
-    const moved = pts.me ? hav(pts.me, np) * 1000 : 1e9;
-    pts.me = np;
-    adminPos = np;
-    setMe();
-    if (moved > 60 && Date.now() - lastDraw > 15000 && sel.startsWith("m")) draw();
-  }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 }) : null;
-  const guard = setInterval(() => {
-    if (box.isConnected) return;
-    clearInterval(guard);
-    clearInterval(anim);
-    if (wid !== null) navigator.geolocation.clearWatch(wid);
-    map.remove();
-  }, 1500);
 }
 
 async function playLegacy(r) {
@@ -581,7 +443,6 @@ try {
 } catch (e) {}
 await loadMore();
 hideLoading();
-getMe();
 
 supabase
   .channel("requests-live")
