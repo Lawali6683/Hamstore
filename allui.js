@@ -1,5 +1,8 @@
+import { compress, uploadToImgur, startUpload } from "./imgfast.js";
+
+export { compress, uploadToImgur };
+
 const LOGO = "https://i.imgur.com/UXH5q5w.png";
-const IMGUR_CLIENT_ID = "5acf7eff9c91660";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -64,6 +67,7 @@ const PAGES = [
   ["post", "adminpost.html", "fa-boxes-stacked", "Posts"],
   ["branch", "adminbranch.html", "fa-store", "Branches"],
   ["rep", "adminrep.html", "fa-inbox", "Requests"],
+  ["deliv", "admindeliveries.html", "fa-truck-ramp-box", "Deliveries and slips"],
   ["map", "adminmap.html", "fa-map-location-dot", "Fleet map"],
   ["veh", "adminveh.html", "fa-id-card", "Register vehicle"],
   ["send", "adminsend.html", "fa-paper-plane", "Vehicles and messages"],
@@ -85,69 +89,109 @@ export const imageFieldHTML = () => `
 <div class="field"><i class="fa-solid fa-link lead"></i><input data-u type="url" placeholder="Or paste an image link"></div>
 <div class="prev" data-pv><img alt="Preview"><button type="button" class="x" data-x aria-label="Remove image"><i class="fa-solid fa-xmark"></i></button></div>`;
 
-export function compress(file, max = 1100, quality = 0.82) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      const dataUrl = c.toDataURL("image/jpeg", quality);
-      resolve({ dataUrl, base64: dataUrl.split(",")[1] });
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
-    img.src = url;
-  });
-}
-
-export async function uploadToImgur(base64) {
-  const res = await fetch("https://api.imgur.com/3/image", {
-    method: "POST",
-    headers: { Authorization: "Client-ID " + IMGUR_CLIENT_ID },
-    body: new URLSearchParams({ image: base64, type: "base64" })
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error("upload");
-  return json.data.link;
-}
-
-export function imagePicker(root) {
+export function imagePicker(root, onState) {
   const file = root.querySelector("[data-f]");
   const url = root.querySelector("[data-u]");
   const box = root.querySelector("[data-pv]");
   const img = box.querySelector("img");
+  const label = root.querySelector(".drop span");
+  const idle = label ? label.textContent : "";
   let picked = null;
+  let job = null;
+  let seq = 0;
+
+  const say = (state, text) => {
+    if (label) label.textContent = text || idle;
+    if (onState) { try { onState(state); } catch (e) {} }
+  };
   const show = src => { img.src = src || ""; box.classList.toggle("on", !!src); };
-  const clear = () => { picked = null; file.value = ""; url.value = ""; show(""); };
+  const stop = () => {
+    seq++;
+    if (job) { job.cancel(); job = null; }
+  };
+  const clear = () => {
+    stop();
+    picked = null;
+    file.value = "";
+    url.value = "";
+    show("");
+    say("idle");
+  };
+
   file.onchange = async () => {
-    if (!file.files[0]) return;
+    const f = file.files[0];
+    if (!f) return;
+    stop();
+    const my = seq;
+    say("work", "Preparing image...");
     try {
-      picked = await compress(file.files[0]);
+      const p = await compress(f);
+      if (my !== seq) return;
+      picked = p;
       url.value = "";
-      show(picked.dataUrl);
+      show(p.dataUrl);
+      say("work", "Uploading image...");
+      const j = startUpload(p.blob);
+      job = j;
+      j.promise.then(
+        link => { if (job === j) { p.link = link; say("ok", "Image ready. Tap to change it."); } },
+        () => { if (job === j) say("fail", "Upload failed. It will try again when you save."); }
+      );
     } catch (e) {
+      if (my !== seq) return;
+      picked = null;
+      file.value = "";
+      show("");
+      say("idle");
       toast("error", "Image problem", "Choose a valid photo.");
     }
   };
+
   url.onchange = () => {
     const v = url.value.trim();
-    if (!v) return show(picked ? picked.dataUrl : "");
+    stop();
+    if (!v) {
+      if (picked) show(picked.dataUrl);
+      return;
+    }
     picked = null;
     file.value = "";
+    say("idle");
     show(v);
   };
-  img.onerror = () => { if (img.getAttribute("src")) toast("error", "Image not loading", "Check the link and try again."); };
+
+  img.onerror = () => {
+    const s = img.getAttribute("src") || "";
+    if (s && !s.startsWith("data:")) toast("error", "Image not loading", "Check the link and try again.");
+  };
   box.querySelector("[data-x]").onclick = clear;
+
   return {
     clear,
-    set(src) { picked = null; file.value = ""; url.value = src || ""; show(src || ""); },
+    set(src) {
+      stop();
+      picked = null;
+      file.value = "";
+      url.value = src || "";
+      show(src || "");
+      say("idle");
+    },
     has: () => !!(picked || url.value.trim()),
-    uploads: () => !!picked,
-    resolve: () => (picked ? uploadToImgur(picked.base64) : Promise.resolve(url.value.trim()))
+    uploads: () => !!picked && !picked.link,
+    async resolve() {
+      if (!picked) return url.value.trim();
+      if (picked.link) return picked.link;
+      if (job) {
+        try {
+          const link = await job.promise;
+          picked.link = link;
+          return link;
+        } catch (e) {}
+      }
+      const link = await uploadToImgur(picked.blob);
+      picked.link = link;
+      return link;
+    }
   };
 }
 
