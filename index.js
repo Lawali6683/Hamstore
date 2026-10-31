@@ -489,7 +489,7 @@ $("bvCenter").onclick = () => { if (bvFit) bvFit(); };
 ["resize", "orientationchange"].forEach(ev => addEventListener(ev, () => { if (bvMap) setTimeout(() => bvMap.invalidateSize(), 200); }));
 
 let rec = null, chunks = [], stream = null, blob = null, recT = 0, recS = 0, kind = "stock", where = null, rpBranch = "";
-let actx = null, analyser = null, waveRaf = 0;
+let actx = null, analyser = null, waveRaf = 0, audioUp = null, sending = false;
 
 const fmtT = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 
@@ -537,7 +537,7 @@ function micReset() {
   clearInterval(recT);
   stopWave();
   if (stream) stream.getTracks().forEach(z => z.stop());
-  stream = null; rec = null; blob = null; chunks = [];
+  stream = null; rec = null; blob = null; chunks = []; audioUp = null;
   $("mic").className = "mic";
   $("mic").innerHTML = '<i class="fa-solid fa-microphone"></i>';
   $("micT").textContent = "0:00";
@@ -582,6 +582,7 @@ async function startRec() {
     $("micA").src = URL.createObjectURL(blob);
     $("micA").hidden = false;
     $("micR").hidden = false;
+    audioUp = uploadAudio(blob).catch(() => null);
     updateBar();
   };
   rec.start();
@@ -659,9 +660,15 @@ async function uploadAudio(b) {
   return data.publicUrl;
 }
 
+async function timed(url, ms) {
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(url, { signal: ctl.signal }); } finally { clearTimeout(tm); }
+}
+
 async function getAddress(lat, lng) {
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=${getLang()}`);
+    const r = await timed(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=${getLang()}`, 4500);
     const j = await r.json();
     return j.display_name || "";
   } catch (e) { return ""; }
@@ -669,13 +676,16 @@ async function getAddress(lat, lng) {
 
 async function getIP() {
   try {
-    const r = await fetch("https://api.ipify.org?format=json");
+    const r = await timed("https://api.ipify.org?format=json", 2500);
     const j = await r.json();
     return j.ip || "";
   } catch (e) { return ""; }
 }
 
+const REPORT_ERR = { name: "e.name", phone: "e.phone", empty: "e.empty", wait: "e.wait", audio: "e.long" };
+
 $("rpSend").onclick = async () => {
+  if (sending) return;
   if (rec && rec.state === "recording") rec.stop();
   await new Promise(r => setTimeout(r, 350));
   const name = $("rpName").value.trim();
@@ -685,26 +695,28 @@ $("rpSend").onclick = async () => {
   if (name.length < 2) return toast("error", t("e.name"));
   if (!/^[0-9+\s-]{7,20}$/.test(phone)) return toast("error", t("e.phone"));
   if (!navigator.onLine) return toast("error", x("offline"));
+  sending = true;
+  $("rpSend").disabled = true;
   showLoading(x("upl"));
   try {
-    if (!where) { try { where = await getPos(8000); } catch (e) { where = null; } }
+    const posP = where ? Promise.resolve(where) : getPos(5000).catch(() => null);
+    const audioP = blob ? (audioUp || Promise.resolve(null)).then(u => u || uploadAudio(blob)) : Promise.resolve("");
+    const addrP = posP.then(p => (p ? getAddress(p.lat, p.lng) : ""));
     let audioUrl = "";
+    let pos = null;
     let address = "";
     let ip = "";
     try {
-      [audioUrl, address, ip] = await Promise.all([
-        blob ? uploadAudio(blob) : Promise.resolve(""),
-        where ? getAddress(where.lat, where.lng) : Promise.resolve(""),
-        getIP()
-      ]);
+      [audioUrl, pos, address, ip] = await Promise.all([audioP, posP, addrP, getIP()]);
     } catch (e) {
-      hideLoading();
+      console.error(e);
       return toast("error", x("upfail"));
     }
-    const body = { name, phone, kind, message, branchId: rpBranch, audioUrl, audio_url: audioUrl, address, ip };
-    if (where) { body.lat = where.lat; body.lng = where.lng; }
-    const res = await fetch("/api/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const j = await res.json();
+    if (pos) where = pos;
+    const body = { name, phone, kind, message, branchId: rpBranch, audio_url: audioUrl || "", address, ip, lat: pos ? pos.lat : null, lng: pos ? pos.lng : null };
+    const { data, error } = await supabase.rpc("submit_report", { p: body });
+    if (error) throw error;
+    const j = data || {};
     if (j.ok) {
       try { localStorage.setItem("hs_who", JSON.stringify({ n: name, p: phone })); localStorage.removeItem("hs_draft"); } catch (e) {}
       $("rpRef").textContent = j.ref;
@@ -721,11 +733,16 @@ $("rpSend").onclick = async () => {
       $("rpText").value = "";
       micReset();
     } else {
-      toast("error", j.code === "wait" ? t("e.wait") : j.code === "phone" ? t("e.phone") : j.code === "audio" ? t("e.long") : t("e.server"));
+      console.error("submit_report", j);
+      toast("error", REPORT_ERR[j.code] ? t(REPORT_ERR[j.code]) : t("e.server"));
     }
   } catch (e) {
-    toast("error", t("err.net"));
+    console.error(e);
+    const m = String((e && e.message) || "");
+    toast("error", /failed to fetch|network|load failed/i.test(m) || !navigator.onLine ? t("err.net") : t("e.server"));
   } finally {
+    sending = false;
+    $("rpSend").disabled = false;
     hideLoading();
   }
 };
