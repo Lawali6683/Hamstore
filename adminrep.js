@@ -83,6 +83,8 @@ function passes(r) {
 
 const row = (icon, text, copy) => `<div class="ar-row"><i class="fa-solid ${icon}"></i><span>${esc(text)}</span>${copy ? `<button class="cp" type="button" data-copy="${esc(copy)}" aria-label="Copy"><i class="fa-regular fa-copy"></i></button>` : ""}</div>`;
 
+const playerHTML = u => `<div class="ap" data-ap-root><button class="ap-play" type="button" data-ap="play" aria-label="Play"><i class="fa-solid fa-play"></i></button><div class="ap-bar" data-ap="seek"><i></i></div><span class="ap-t">0:00</span><button class="ap-sp" type="button" data-ap="speed">1x</button><a class="ap-dl" href="${esc(u)}" target="_blank" rel="noopener" download aria-label="Download"><i class="fa-solid fa-download"></i></a><audio preload="none" src="${esc(u)}"></audio></div>`;
+
 function cardHTML(r) {
   const k = kindOf(r.kind);
   const [icon, label] = KINDS[k];
@@ -103,7 +105,7 @@ function cardHTML(r) {
     <p class="when"><i class="fa-regular fa-clock"></i><time class="ago" data-ts="${r.createdAt}" title="${esc(when)}">${esc(ago(r.createdAt))}</time><span>${esc(when)}</span>${r.ref ? `<b class="ref">${esc(r.ref)}</b>` : ""}</p>
     ${r.items ? `<p class="msg"><b>Items:</b> ${esc(r.items)}</p>` : ""}
     ${r.message ? `<p class="msg">${esc(r.message)}</p>` : ""}
-    ${r.audioUrl ? `<div class="ar-audio"><i class="fa-solid fa-microphone-lines"></i><audio controls preload="none" src="${esc(r.audioUrl)}"></audio><a class="dl" href="${esc(r.audioUrl)}" target="_blank" rel="noopener" download aria-label="Download"><i class="fa-solid fa-download"></i></a></div>` : ""}
+    ${r.audioUrl ? playerHTML(r.audioUrl) : ""}
     <div class="ar-rows">
       ${r.address ? row("fa-location-dot", r.address, r.address) : ""}
       ${has ? row("fa-crosshairs", r.lat.toFixed(5) + ", " + r.lng.toFixed(5), r.lat + "," + r.lng) : ""}
@@ -114,11 +116,14 @@ function cardHTML(r) {
     <div class="ar-acts">
       <a class="ab call" href="${telHref(r.phone)}"><i class="fa-solid fa-phone"></i>Call</a>
       <a class="ab wa" href="https://wa.me/${waNum(r.phone)}?text=${waText}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp</a>
-      ${canMap ? '<button class="ab map" data-act="map" type="button"><i class="fa-solid fa-route"></i>Map and route</button>' : ""}
+      ${canMap ? '<button class="ab route" data-act="map" type="button"><i class="fa-solid fa-route"></i>Map and route</button>' : ""}
       ${shopPhone ? `<a class="ab" href="${telHref(shopPhone)}"><i class="fa-solid fa-store"></i>Call shop</a>` : ""}
       ${r.voice && !r.audioUrl ? '<button class="ab" data-act="voice" type="button"><i class="fa-solid fa-circle-play"></i>Voice</button>' : ""}
       <button class="ab ok" data-act="done" type="button"><i class="fa-solid ${isDone ? "fa-rotate-left" : "fa-check"}"></i>${isDone ? "Reopen" : "Done"}</button>
-      <button class="ab del" data-act="del" type="button" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+    </div>
+    <div class="ar-danger">
+      ${r.audioUrl ? '<button class="ab danger" data-act="delaudio" type="button"><i class="fa-solid fa-microphone-slash"></i>Delete voice</button>' : ""}
+      <button class="ab danger" data-act="del" type="button"><i class="fa-solid fa-trash"></i>Delete all</button>
     </div></article>`;
 }
 
@@ -235,7 +240,86 @@ async function playLegacy(r) {
   }
 }
 
+const fmtT = s => (!isFinite(s) || s < 0 ? "0:00" : Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0"));
+
+function apPaint(root, audio) {
+  const dur = audio.duration;
+  const ok = dur && isFinite(dur);
+  root.querySelector(".ap-bar i").style.width = (ok ? (audio.currentTime / dur) * 100 : 0) + "%";
+  root.querySelector(".ap-t").textContent = fmtT(audio.currentTime) + (ok ? " / " + fmtT(dur) : "");
+  root.querySelector(".ap-play i").className = "fa-solid " + (audio.paused ? "fa-play" : "fa-pause");
+  root.classList.toggle("on", !audio.paused);
+}
+
+["timeupdate", "play", "pause", "ended", "loadedmetadata", "durationchange"].forEach(ev => $("list").addEventListener(ev, e => {
+  const a = e.target;
+  if (!(a instanceof HTMLAudioElement)) return;
+  if (ev === "loadedmetadata" && a.duration === Infinity && !a.dataset.fix) {
+    a.dataset.fix = "1";
+    a.currentTime = 1e101;
+    a.addEventListener("timeupdate", function back() { a.removeEventListener("timeupdate", back); a.currentTime = 0; });
+  }
+  const root = a.closest("[data-ap-root]");
+  if (root) apPaint(root, a);
+}, true));
+
+function playerClick(btn, e) {
+  const root = btn.closest("[data-ap-root]");
+  if (!root) return;
+  const audio = root.querySelector("audio");
+  const kind = btn.dataset.ap;
+  if (kind === "play") {
+    if (audio.paused) {
+      document.querySelectorAll("#list audio").forEach(z => { if (z !== audio) z.pause(); });
+      audio.play().catch(() => toast("error", "Could not play", "The voice note could not be loaded."));
+    } else audio.pause();
+  } else if (kind === "speed") {
+    const next = { 1: 1.5, 1.5: 2, 2: 1 }[audio.playbackRate] || 1;
+    audio.playbackRate = next;
+    btn.textContent = next + "x";
+  } else if (kind === "seek") {
+    const d = audio.duration;
+    if (d && isFinite(d)) {
+      const rc = btn.getBoundingClientRect();
+      audio.currentTime = Math.max(0, Math.min(1, (e.clientX - rc.left) / rc.width)) * d;
+    }
+  }
+}
+
+async function dropAudio(url) {
+  const p = audioPath(url);
+  if (!p) return true;
+  try {
+    const { data, error } = await supabase.storage.from(BUCKET).remove([p]);
+    if (!error && Array.isArray(data) && data.length) return true;
+  } catch (e) {}
+  try {
+    const r = await fetch(url, { method: "HEAD", cache: "no-store" });
+    return r.status === 404 || r.status === 400;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function eraseRequest(r) {
+  if (r.audioUrl && !(await dropAudio(r.audioUrl))) return "audio";
+  try { await supabase.from("voices").delete().eq("request_id", r.id); } catch (e) {}
+  const rows = must(await supabase.from("requests").delete().eq("id", r.id).select("id"));
+  if (!rows || !rows.length) return "denied";
+  return "";
+}
+
+function forget(id) {
+  items.delete(id);
+  const el = cardEl(id);
+  if (el) el.remove();
+  updateCounts();
+  emptyCheck();
+}
+
 $("list").addEventListener("click", async e => {
+  const ap = e.target.closest("[data-ap]");
+  if (ap) { playerClick(ap, e); return; }
   const cp = e.target.closest("[data-copy]");
   if (cp) {
     try { await navigator.clipboard.writeText(cp.dataset.copy); toast("success", "Copied", cp.dataset.copy); } catch (err) { toast("error", "Could not copy", ""); }
@@ -246,9 +330,10 @@ $("list").addEventListener("click", async e => {
   const id = btn.closest(".ar-card").dataset.id;
   const r = items.get(id);
   if (!r) return;
-  if (btn.dataset.act === "map") return showRoute(r);
-  if (btn.dataset.act === "voice") return playLegacy(r);
-  if (btn.dataset.act === "done") {
+  const act = btn.dataset.act;
+  if (act === "map") return showRoute(r);
+  if (act === "voice") return playLegacy(r);
+  if (act === "done") {
     const status = r.status === "done" ? "new" : "done";
     try {
       const rows = must(await supabase.from("requests").update({ status }).eq("id", id).select("id"));
@@ -260,24 +345,59 @@ $("list").addEventListener("click", async e => {
     }
     return;
   }
-  if (btn.dataset.act === "del") {
-    if (!(await confirmBox({ title: "Delete this request?", text: "The voice note will be deleted too. This cannot be undone.", okText: "Delete", danger: true }))) return;
+  if (act === "delaudio") {
+    if (!(await confirmBox({ title: "Delete this voice note?", text: "The file will be removed from storage for good. The request stays.", okText: "Delete voice", danger: true }))) return;
+    showLoading("Deleting...");
     try {
-      const rows = must(await supabase.from("requests").delete().eq("id", id).select("id"));
+      if (!(await dropAudio(r.audioUrl))) return toast("error", "Voice file not removed", "Run hamstore_admin_fix.sql in Supabase, then try again.");
+      const rows = must(await supabase.from("requests").update({ audio_url: null }).eq("id", id).select("id"));
       if (!rows || !rows.length) throw new Error("denied");
-      const p = audioPath(r.audioUrl);
-      if (p) { try { await supabase.storage.from(BUCKET).remove([p]); } catch (err) {} }
-      items.delete(id);
-      const el = cardEl(id);
-      if (el) el.remove();
-      updateCounts();
-      emptyCheck();
+      r.audio_url = null;
+      r.audioUrl = "";
+      upsertCard(r, false);
+      toast("success", "Deleted", "The voice note was removed from storage.");
+    } catch (err) {
+      toast("error", "Could not delete", "You may not have permission.");
+    } finally {
+      hideLoading();
+    }
+    return;
+  }
+  if (act === "del") {
+    if (!(await confirmBox({ title: "Delete this request?", text: r.audioUrl ? "The request and its voice note will be deleted for good, including the file in storage." : "The request will be deleted for good.", okText: "Delete all", danger: true }))) return;
+    showLoading("Deleting...");
+    try {
+      const res = await eraseRequest(r);
+      if (res === "audio") return toast("error", "Voice file not removed", "Run hamstore_admin_fix.sql in Supabase, then try again.");
+      if (res) return toast("error", "Could not delete", "You may not have permission.");
+      forget(id);
       toast("success", "Deleted", "The request was removed.");
     } catch (err) {
       toast("error", "Could not delete", "You may not have permission.");
+    } finally {
+      hideLoading();
     }
   }
 });
+
+$("clearDone").onclick = async () => {
+  const list = [...items.values()].filter(r => r.status === "done");
+  if (!list.length) return toast("error", "Nothing to clear", "There are no done requests loaded.");
+  if (!(await confirmBox({ title: "Delete " + list.length + " done requests?", text: "Their voice notes will be removed from storage too. This cannot be undone.", okText: "Delete them", danger: true }))) return;
+  showLoading("Deleting...");
+  let ok = 0;
+  let fail = 0;
+  for (const r of list) {
+    try {
+      const res = await eraseRequest(r);
+      if (res) fail++; else { ok++; forget(r.id); }
+    } catch (err) {
+      fail++;
+    }
+  }
+  hideLoading();
+  toast(fail ? "error" : "success", ok + " deleted", fail ? fail + " could not be removed." : "Storage was cleaned too.");
+};
 
 const csvCell = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
 $("exportBtn").onclick = () => {
