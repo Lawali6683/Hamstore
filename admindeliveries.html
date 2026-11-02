@@ -19,7 +19,19 @@
     </div>
   </div>
 
-  <div class="ar-warn" id="noAcc" hidden><i class="fa-solid fa-triangle-exclamation"></i><span>No payment account is set. Customers cannot order online until you add one.</span></div>
+  <div class="ar-warn" id="noAcc" hidden><i class="fa-solid fa-triangle-exclamation"></i><span>No payment account is set. Customers cannot order online until you <a href="#accounts">add one below</a>.</span></div>
+
+  <section class="ar-acc" id="accounts">
+    <div class="ar-acc-h"><h3><i class="fa-solid fa-building-columns"></i>Payment accounts</h3><span class="ar-count" id="accCount">0</span></div>
+    <p class="hint">Customers see the bank name, account name and account number when they pay. Only admins can add or change them.</p>
+    <div class="ar-acc-list" id="accList"></div>
+    <form class="ar-acc-form" id="accForm" novalidate autocomplete="off">
+      <label>Bank name<input id="aBank" type="text" maxlength="40" placeholder="Bank name"></label>
+      <label>Account name<input id="aName" type="text" maxlength="80" placeholder="Account name"></label>
+      <label>Account number<input id="aNum" type="text" inputmode="numeric" maxlength="20" placeholder="Account number"></label>
+      <button class="btn" type="submit"><i class="fa-solid fa-plus"></i>Save account</button>
+    </form>
+  </section>
 
   <div class="ar-stats">
     <div class="s new"><i class="fa-solid fa-truck-fast"></i><b id="sPend">0</b><small>Waiting for delivery</small></div>
