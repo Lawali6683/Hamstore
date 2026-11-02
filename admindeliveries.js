@@ -1,341 +1,358 @@
-const LJS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-const LCSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-const TILE = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const ATTR = "&copy; OpenStreetMap &copy; CARTO";
+import { supabase, must } from "./supabase.js";
+import { requireAdmin } from "./guard.js";
+import { toast, confirmBox, telHref, esc, ago } from "./allui.js";
+import { showLoading, hideLoading } from "./loading.js";
+import { openRouteMap } from "./hsmap.js";
+import { downloadSlip } from "./slip.js";
 
-const T = {
-  en: {
-    close: "Close map", finding: "Finding the road...", you: "You are here", dist: "Distance", time: "Time", arrive: "Arrive",
-    dir: "Directions", gm: "Open in Google Maps", fit: "Recenter", mc: "Me → Customer", ms: "Me → Shop", cs: "Customer → Shop",
-    allow: "Allow location access to see the route from where you are.", cust: "Customer", shop: "Shop", call: "Call",
-    road: "By road", line: "Straight line", left: "Turn left", right: "Turn right", sl: "Bear left", sr: "Bear right",
-    shl: "Sharp left", shr: "Sharp right", straight: "Continue straight", uturn: "Make a U-turn", start: "Start driving",
-    arrived: "You have arrived", round: "Enter the roundabout", onto: " onto ", on: " on ", away: "away"
-  },
-  ha: {
-    close: "Rufe taswira", finding: "Ana neman hanya...", you: "Kana nan", dist: "Nisa", time: "Lokaci", arrive: "Isowa",
-    dir: "Jagorar hanya", gm: "Buɗe a Google Maps", fit: "Koma tsakiya", mc: "Ni → Kwastoma", ms: "Ni → Shago", cs: "Kwastoma → Shago",
-    allow: "Ka ba da izinin location don ganin hanya daga inda kake.", cust: "Kwastoma", shop: "Shago", call: "Kira",
-    road: "Ta hanya", line: "Layi kai tsaye", left: "Ka juya hagu", right: "Ka juya dama", sl: "Ka karkata hagu kaɗan", sr: "Ka karkata dama kaɗan",
-    shl: "Ka juya hagu sosai", shr: "Ka juya dama sosai", straight: "Ka ci gaba da tafiya", uturn: "Ka juya baya", start: "Ka fara tafiya",
-    arrived: "Ka isa wurin", round: "Shiga zagaye", onto: " a ", on: " a ", away: "daga nan"
-  }
-};
+await requireAdmin("rep");
 
-const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const num = v => typeof v === "number" && Number.isFinite(v);
-const valid = p => !!p && num(Number(p.lat)) && num(Number(p.lng)) && p.lat !== null && p.lng !== null && p.lat !== "" && p.lng !== "";
-const tel = p => "tel:" + String(p || "").replace(/[^\d+]/g, "");
+const PAGE = 20;
+const $ = id => document.getElementById(id);
+const rows = new Map();
+const baseTitle = document.title;
+let done = false;
+let busy = false;
+let fetched = 0;
+let filter = "pending";
+let term = "";
+let unread = 0;
+let soundOn = localStorage.getItem("hs_snd") !== "0";
+let ac = null;
+
+const naira = n => "₦" + Math.round(Number(n) || 0).toLocaleString("en-US");
+const safeUrl = u => (/^https?:\/\//i.test(String(u || "")) ? String(u) : "");
 const waNum = p => {
   const d = String(p || "").replace(/\D/g, "");
   if (d.startsWith("234")) return d;
   if (d.startsWith("0")) return "234" + d.slice(1);
   return d;
 };
-const safeUrl = u => (/^https?:\/\//i.test(String(u || "")) ? String(u) : "");
-const fmtKm = n => (n < 10 ? n.toFixed(1) : String(Math.round(n))) + " km";
-const fmtMin = m => (m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m");
-const fmtDist = d => (d < 1000 ? Math.max(10, Math.round(d / 10) * 10) + " m" : (d / 1000).toFixed(1) + " km");
-const arriveAt = min => new Date(Date.now() + min * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const hasPos = r => typeof r.lat === "number" && typeof r.lng === "number";
 
-const hav = (a, b) => {
-  const rad = d => (d * Math.PI) / 180;
-  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
-  return 12742 * Math.asin(Math.sqrt(h));
+const norm = r => ({
+  ...r,
+  createdAt: Number(r.created_at) || 0,
+  deliveredAt: Number(r.delivered_at) || 0,
+  list: Array.isArray(r.items) ? r.items : []
+});
+
+async function fetchPage() {
+  const from = fetched;
+  const data = (must(await supabase.from("deliveries").select("*").order("created_at", { ascending: false }).range(from, from + PAGE - 1)) || []).map(norm);
+  fetched += data.length;
+  if (data.length < PAGE) done = true;
+  return data;
+}
+
+function passes(r) {
+  if (filter === "pending" && r.status !== "pending") return false;
+  if (filter === "delivered" && r.status !== "delivered") return false;
+  if (!term) return true;
+  return [r.code, r.name, r.phone, r.driver, r.address].join(" ").toLowerCase().includes(term);
+}
+
+function cardHTML(r) {
+  const isDone = r.status === "delivered";
+  const pos = hasPos(r);
+  const when = new Date(r.createdAt).toLocaleString();
+  const proof = safeUrl(r.proof_url);
+  const lines = r.list.map(i => `<div class="ar-row"><i class="fa-solid fa-box"></i><span>${esc(i.name)} × ${esc(i.qty)}</span><b>${esc(naira(i.line || (Number(i.price) || 0) * (Number(i.qty) || 0)))}</b></div>`).join("");
+  return `<article class="ar-card ${isDone ? "done" : "order"}" data-id="${esc(r.code)}">
+    <header class="ar-h">
+      <span class="av"><i class="fa-solid ${isDone ? "fa-check" : "fa-truck-fast"}"></i></span>
+      <div class="who"><h4>${esc(r.name || "Customer")}</h4>${r.phone ? `<a class="ph" href="${telHref(r.phone)}"><i class="fa-solid fa-phone"></i>${esc(r.phone)}</a>` : `<span class="ph">Phone removed</span>`}</div>
+      <div class="tags"><span class="stt ${isDone ? "d" : "n"}">${isDone ? "Delivered" : "Pending"}</span></div>
+    </header>
+    <p class="when"><i class="fa-regular fa-clock"></i><time class="ago" data-ts="${r.createdAt}" title="${esc(when)}">${esc(ago(r.createdAt))}</time><span>${esc(when)}</span><b class="ref">${esc(r.code)}</b></p>
+    <div class="ar-rows">${lines}</div>
+    <div class="ar-sum"><span>Total</span><b>${esc(naira(r.total))}</b></div>
+    ${r.address ? `<div class="ar-rows"><div class="ar-row"><i class="fa-solid fa-location-dot"></i><span>${esc(r.address)}</span><button class="cp" type="button" data-copy="${esc(r.address)}" aria-label="Copy"><i class="fa-regular fa-copy"></i></button></div></div>` : ""}
+    ${proof ? `<a class="ar-proof" href="${esc(proof)}" target="_blank" rel="noopener"><img src="${esc(proof)}" alt="Payment proof" loading="lazy"><span><i class="fa-solid fa-receipt"></i>Payment proof</span></a>` : ""}
+    ${isDone ? `<div class="ar-rows"><div class="ar-row"><i class="fa-solid fa-id-badge"></i><span>Driver: ${esc(r.driver || "-")}</span></div><div class="ar-row"><i class="fa-solid fa-check-double"></i><span>${esc(new Date(r.deliveredAt).toLocaleString())}</span></div>${r.note ? `<div class="ar-row"><i class="fa-solid fa-note-sticky"></i><span>${esc(r.note)}</span></div>` : ""}</div>` : ""}
+    <div class="ar-acts">
+      ${!isDone && r.phone ? `<a class="ab call" href="${telHref(r.phone)}"><i class="fa-solid fa-phone"></i>Call</a><a class="ab wa" href="https://wa.me/${waNum(r.phone)}?text=${encodeURIComponent("Hello " + (r.name || "") + ", this is Hamstore. Your order " + r.code + " is on the way. Give the code to the driver when goods arrive.")}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp</a>` : ""}
+      ${!isDone && pos ? '<button class="ab route" data-act="map" type="button"><i class="fa-solid fa-route"></i>Map and route</button>' : ""}
+      ${isDone && typeof r.delivered_lat === "number" ? '<button class="ab route" data-act="where" type="button"><i class="fa-solid fa-location-dot"></i>Delivered here</button>' : ""}
+      ${!isDone ? '<button class="ab" data-act="slip" type="button"><i class="fa-solid fa-file-pdf"></i>Slip PDF</button>' : ""}
+      <button class="ab" data-act="copycode" type="button"><i class="fa-regular fa-copy"></i>Code</button>
+      <button class="ab del" data-act="del" type="button" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
+    </div></article>`;
+}
+
+function counts() {
+  let p = 0, d = 0, today = 0, val = 0;
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  rows.forEach(r => {
+    if (r.status === "delivered") { d++; if (r.deliveredAt >= day.getTime()) today++; }
+    else { p++; val += Number(r.total) || 0; }
+  });
+  $("sPend").textContent = p;
+  $("sToday").textContent = today;
+  $("sValue").textContent = naira(val);
+  $("sAll").textContent = rows.size;
+  $("filters").querySelectorAll(".chip").forEach(c => {
+    const b = c.querySelector("b");
+    if (b) b.textContent = c.dataset.f === "pending" ? p : c.dataset.f === "delivered" ? d : rows.size;
+  });
+}
+
+function emptyCheck() {
+  $("empty").hidden = $("list").children.length > 0;
+  $("more").hidden = done;
+}
+
+function render() {
+  const list = [...rows.values()].filter(passes).sort((a, b) => b.createdAt - a.createdAt);
+  $("list").innerHTML = list.map(cardHTML).join("");
+  counts();
+  emptyCheck();
+}
+
+const cardEl = code => $("list").querySelector(`[data-id="${CSS.escape(String(code))}"]`);
+
+function upsert(r, isNew) {
+  const el = cardEl(r.code);
+  if (!passes(r)) { if (el) el.remove(); }
+  else if (el) el.outerHTML = cardHTML(r);
+  else if (isNew) {
+    $("list").insertAdjacentHTML("afterbegin", cardHTML(r));
+    $("list").firstElementChild.classList.add("fresh");
+  }
+  counts();
+  emptyCheck();
+}
+
+async function loadMore() {
+  if (busy || done) return;
+  busy = true;
+  $("more").disabled = true;
+  try {
+    const data = await fetchPage();
+    data.forEach(r => rows.set(r.code, r));
+    const list = data.filter(passes).sort((a, b) => b.createdAt - a.createdAt);
+    $("list").insertAdjacentHTML("beforeend", list.map(cardHTML).join(""));
+    counts();
+    emptyCheck();
+  } catch (e) {
+    toast("error", "Could not load deliveries", "Check your internet and try again.");
+  } finally {
+    busy = false;
+    $("more").disabled = false;
+  }
+}
+$("more").onclick = loadMore;
+new IntersectionObserver(en => { if (en[0].isIntersecting) loadMore(); }, { rootMargin: "500px" }).observe($("more"));
+
+$("filters").querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  filter = c.dataset.f;
+  $("filters").querySelectorAll(".chip").forEach(z => z.classList.toggle("on", z === c));
+  render();
+});
+
+let searchT = 0;
+$("q").addEventListener("input", e => {
+  clearTimeout(searchT);
+  searchT = setTimeout(() => { term = e.target.value.trim().toLowerCase(); render(); }, 180);
+});
+
+$("list").addEventListener("click", async e => {
+  const cp = e.target.closest("[data-copy]");
+  if (cp) {
+    try { await navigator.clipboard.writeText(cp.dataset.copy); toast("success", "Copied", cp.dataset.copy); } catch (err) { toast("error", "Could not copy", ""); }
+    return;
+  }
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const code = btn.closest(".ar-card").dataset.id;
+  const r = rows.get(code);
+  if (!r) return;
+  const act = btn.dataset.act;
+  if (act === "copycode") {
+    try { await navigator.clipboard.writeText(r.code); toast("success", "Copied", r.code); } catch (err) {}
+    return;
+  }
+  if (act === "map") {
+    openRouteMap({ title: r.name, cust: { lat: r.lat, lng: r.lng, name: r.name, address: r.address, phone: r.phone } });
+    return;
+  }
+  if (act === "where") {
+    openRouteMap({ title: r.code, cust: { lat: r.delivered_lat, lng: r.delivered_lng, name: "Delivered here", address: r.driver ? "Driver: " + r.driver : "" } });
+    return;
+  }
+  if (act === "slip") {
+    showLoading("Preparing slip...");
+    try {
+      await downloadSlip({ code: r.code, name: r.name, phone: r.phone, address: r.address, createdAt: r.createdAt, total: r.total, items: r.list });
+    } catch (err) {
+      toast("error", "Could not make the slip", "");
+    } finally {
+      hideLoading();
+    }
+    return;
+  }
+  if (act === "del") {
+    if (!(await confirmBox({ title: "Delete this delivery?", text: r.code + " will no longer open for the driver.", okText: "Delete", danger: true }))) return;
+    try {
+      const del = must(await supabase.from("deliveries").delete().eq("code", r.code).select("code"));
+      if (!del || !del.length) throw new Error("denied");
+      rows.delete(r.code);
+      const el = cardEl(r.code);
+      if (el) el.remove();
+      counts();
+      emptyCheck();
+      toast("success", "Deleted", r.code);
+    } catch (err) {
+      toast("error", "Could not delete", "You may not have permission.");
+    }
+  }
+});
+
+function beep() {
+  if (!soundOn) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === "suspended") ac.resume();
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    const t = ac.currentTime;
+    o.type = "sine";
+    o.frequency.setValueAtTime(880, t);
+    o.frequency.setValueAtTime(1175, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    o.connect(g);
+    g.connect(ac.destination);
+    o.start();
+    o.stop(t + 0.42);
+    if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+  } catch (e) {}
+}
+
+function paintAlerts() {
+  $("alerts").classList.toggle("on", soundOn);
+  $("alerts").innerHTML = `<i class="fa-solid ${soundOn ? "fa-bell" : "fa-bell-slash"}"></i>Alerts`;
+}
+$("alerts").onclick = () => {
+  soundOn = !soundOn;
+  localStorage.setItem("hs_snd", soundOn ? "1" : "0");
+  paintAlerts();
+  if (soundOn) beep();
+};
+paintAlerts();
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) { unread = 0; document.title = baseTitle; }
+});
+document.addEventListener("click", () => { if (ac && ac.state === "suspended") ac.resume(); }, { once: true });
+setInterval(() => {
+  document.querySelectorAll("time.ago").forEach(el => { el.textContent = ago(Number(el.dataset.ts)); });
+}, 60000);
+
+let accs = [];
+
+function renderAccs() {
+  $("accCount").textContent = accs.length;
+  $("noAcc").hidden = accs.some(a => String(a.number || "").trim());
+  $("accList").innerHTML = accs.length
+    ? accs.map(a => `<div class="ar-acc-row" data-id="${esc(a.id)}"><div><b>${esc(a.number)}</b><span>${esc(a.name)} · ${esc(a.bank)}</span></div><button class="ab" data-accact="copy" type="button" aria-label="Copy"><i class="fa-regular fa-copy"></i></button><button class="ab danger" data-accact="del" type="button" aria-label="Remove"><i class="fa-solid fa-trash"></i></button></div>`).join("")
+    : '<p class="ar-empty">No account yet. Add one below.</p>';
+}
+
+async function loadAccs() {
+  try {
+    accs = must(await supabase.from("payment_accounts").select("*").order("created_at", { ascending: true })) || [];
+  } catch (e) {
+    accs = [];
+    toast("error", "Could not load accounts", "Check your internet and try again.");
+  }
+  renderAccs();
+}
+
+$("accBtn").onclick = () => {
+  $("accounts").scrollIntoView({ behavior: "smooth", block: "start" });
+  setTimeout(() => $("aBank").focus({ preventScroll: true }), 400);
 };
 
-let lastMe = null;
-let leafletP = null;
-
-function loadLeaflet() {
-  if (window.L) return Promise.resolve(window.L);
-  if (leafletP) return leafletP;
-  leafletP = new Promise((res, rej) => {
-    if (!document.querySelector(`link[href="${LCSS}"]`)) {
-      const l = document.createElement("link");
-      l.rel = "stylesheet";
-      l.href = LCSS;
-      document.head.appendChild(l);
-    }
-    const s = document.createElement("script");
-    s.src = LJS;
-    s.onload = () => res(window.L);
-    s.onerror = () => { leafletP = null; rej(new Error("leaflet")); };
-    document.head.appendChild(s);
-  });
-  return leafletP;
-}
-
-function ensureCss() {
-  if (document.querySelector("link[data-hsm]")) return;
-  const l = document.createElement("link");
-  l.rel = "stylesheet";
-  l.href = new URL("./hsmap.css", import.meta.url).href;
-  l.dataset.hsm = "1";
-  document.head.appendChild(l);
-}
-
-async function osrm(a, b) {
+$("accList").addEventListener("click", async e => {
+  const b = e.target.closest("[data-accact]");
+  if (!b) return;
+  const id = b.closest(".ar-acc-row").dataset.id;
+  const a = accs.find(z => String(z.id) === String(id));
+  if (!a) return;
+  if (b.dataset.accact === "copy") {
+    try { await navigator.clipboard.writeText(a.number); toast("success", "Copied", a.number); } catch (err) {}
+    return;
+  }
+  if (!(await confirmBox({ title: "Remove this account?", text: a.number + " · " + a.bank, okText: "Remove", danger: true }))) return;
   try {
-    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&steps=true`);
-    const j = await r.json();
-    const rt = j.routes && j.routes[0];
-    if (!rt) throw new Error("none");
-    const steps = [];
-    (rt.legs || []).forEach(l => (l.steps || []).forEach(s => steps.push({ m: s.maneuver || {}, name: s.name || "", d: s.distance || 0 })));
-    return { pts: rt.geometry.coordinates.map(c => [c[1], c[0]]), km: rt.distance / 1000, min: Math.max(1, Math.round(rt.duration / 60)), steps, est: false };
-  } catch (e) {
-    const d = hav(a, b);
-    return { pts: [[a.lat, a.lng], [b.lat, b.lng]], km: d, min: Math.max(1, Math.round((d / 30) * 60)), steps: [], est: true };
+    const del = must(await supabase.from("payment_accounts").delete().eq("id", a.id).select("id"));
+    if (!del || !del.length) throw new Error("denied");
+    toast("success", "Removed", a.number);
+    loadAccs();
+  } catch (err) {
+    toast("error", "Could not remove", "Run hamstore_admin_fix.sql in Supabase if this keeps happening.");
   }
-}
+});
 
-function stepText(s, tx) {
-  const type = s.m.type;
-  const mod = s.m.modifier;
-  const on = s.name ? tx.onto + s.name : "";
-  if (type === "depart") return tx.start + (s.name ? tx.on + s.name : "");
-  if (type === "arrive") return tx.arrived;
-  if (type === "roundabout" || type === "rotary") return tx.round + on;
-  const map = { left: tx.left, right: tx.right, "slight left": tx.sl, "slight right": tx.sr, "sharp left": tx.shl, "sharp right": tx.shr, straight: tx.straight, uturn: tx.uturn };
-  return (mod && map[mod] ? map[mod] : tx.straight) + on;
-}
-
-function stepIcon(s) {
-  const type = s.m.type;
-  const mod = s.m.modifier || "";
-  if (type === "arrive") return "fa-flag-checkered";
-  if (type === "depart") return "fa-play";
-  if (type === "roundabout" || type === "rotary") return "fa-arrows-rotate";
-  if (mod === "uturn") return "fa-rotate-left";
-  if (mod.includes("left")) return "fa-arrow-left";
-  if (mod.includes("right")) return "fa-arrow-right";
-  return "fa-arrow-up";
-}
-
-export async function openRouteMap(opts = {}) {
-  const cust = valid(opts.cust) ? opts.cust : null;
-  const shop = valid(opts.shop) ? opts.shop : null;
-  if (!cust && !shop) return null;
-  ensureCss();
-  const lang = (opts.lang || document.documentElement.getAttribute("data-lang") || "en") === "ha" ? "ha" : "en";
-  const s = T[lang];
-
-  const custCard = c => `<div class="hsm-card"><i class="fa-solid fa-house-user"></i><div><span class="lbl">${s.cust}</span><h4>${esc(c.name)}</h4>${c.address ? `<p>${esc(c.address)}</p>` : ""}${c.phone ? `<div class="hsm-calls"><a class="hsm-b sm call" href="${tel(c.phone)}"><i class="fa-solid fa-phone"></i>${s.call}</a><a class="hsm-b sm wa" href="https://wa.me/${waNum(c.phone)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp</a></div>` : ""}</div></div>`;
-  const shopPhones = c => (Array.isArray(c.phones) ? c.phones : [c.phone]).filter(Boolean);
-  const shopCard = c => `<div class="hsm-card">${safeUrl(c.image) ? `<img src="${esc(c.image)}" alt="">` : '<i class="fa-solid fa-store"></i>'}<div><span class="lbl">${s.shop}</span><h4>${esc(c.name)}</h4>${c.address ? `<p>${esc(c.address)}</p>` : ""}<div class="hsm-calls">${shopPhones(c).map(p => `<a class="hsm-b sm call" href="${tel(p)}"><i class="fa-solid fa-phone"></i>${esc(p)}</a>`).join("")}</div></div></div>`;
-
-  const root = document.createElement("div");
-  root.className = "hsm";
-  root.setAttribute("role", "dialog");
-  root.setAttribute("aria-modal", "true");
-  root.innerHTML = `<div class="hsm-map"></div>
-    <button class="hsm-x" type="button" aria-label="${s.close}"><i class="fa-solid fa-xmark"></i></button>
-    <div class="hsm-top"></div>
-    <div class="hsm-wrap">
-      <div class="hsm-ctl"><button class="hsm-mb" type="button" data-a="fit" aria-label="${s.fit}"><i class="fa-solid fa-location-crosshairs"></i></button></div>
-      <div class="hsm-sheet">
-        <button class="hsm-grab" type="button" aria-label="Expand"></button>
-        <h3 class="hsm-title">${esc(opts.title || "")}</h3>
-        <div class="hsm-tabs"></div>
-        <div class="hsm-eta"><div><small>${s.dist}</small><b data-e="km">-</b></div><div><small>${s.time}</small><b data-e="min">-</b></div><div><small>${s.arrive}</small><b data-e="arr">-</b></div></div>
-        <div class="hsm-cards">${cust ? custCard(cust) : ""}${shop ? shopCard(shop) : ""}</div>
-        <div class="hsm-btns"><a class="hsm-b gm" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i>${s.gm}</a></div>
-        <h5>${s.dir}</h5>
-        <ol class="hsm-steps"></ol>
-      </div>
-    </div>`;
-  document.body.appendChild(root);
-  document.body.classList.add("hsm-lock");
-
-  const q = sel => root.querySelector(sel);
-  const top = q(".hsm-top");
-  const sheet = q(".hsm-sheet");
-  const tabsEl = q(".hsm-tabs");
-  const stepsEl = q(".hsm-steps");
-  const gm = q(".gm");
-  const setEta = (a, b, c) => { q('[data-e="km"]').textContent = a; q('[data-e="min"]').textContent = b; q('[data-e="arr"]').textContent = c; };
-
-  let closed = false;
-  let pushed = false;
-  let map = null;
-  let wid = null;
-  let anim = 0;
-  let veh = 0;
-  let sel = "";
-  let lastDraw = 0;
-  let drawTok = 0;
-  let layers = [];
-  let meMarker = null;
-
-  const close = () => {
-    if (closed) return;
-    closed = true;
-    clearInterval(anim);
-    clearInterval(veh);
-    if (wid !== null && navigator.geolocation) navigator.geolocation.clearWatch(wid);
-    window.removeEventListener("popstate", onPop);
-    document.removeEventListener("keydown", onKey);
-    window.removeEventListener("resize", onSize);
-    if (map) map.remove();
-    root.remove();
-    document.body.classList.remove("hsm-lock");
-    if (pushed && history.state && history.state.hsm) history.back();
-  };
-  const onPop = () => { pushed = false; close(); };
-  const onKey = e => { if (e.key === "Escape") close(); };
-  const onSize = () => { if (map) setTimeout(() => map.invalidateSize(), 200); };
-  window.addEventListener("popstate", onPop);
-  document.addEventListener("keydown", onKey);
-  window.addEventListener("resize", onSize);
-  window.addEventListener("orientationchange", onSize);
-  try { history.pushState({ hsm: 1 }, ""); pushed = true; } catch (e) {}
-  try { screen.orientation.unlock(); } catch (e) {}
-  q(".hsm-x").onclick = close;
-  q(".hsm-grab").onclick = () => sheet.classList.toggle("open");
-
-  let L;
+$("accForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const bank = $("aBank").value.trim();
+  const name = $("aName").value.trim();
+  const number = $("aNum").value.replace(/\s/g, "");
+  if (bank.length < 2) return toast("error", "Bank name", "Enter the bank name.");
+  if (name.length < 2) return toast("error", "Account name", "Enter the account name.");
+  if (!/^[0-9]{6,20}$/.test(number)) return toast("error", "Account number", "Enter digits only, at least 6.");
+  const btn = $("accForm").querySelector("button[type=submit]");
+  btn.disabled = true;
   try {
-    L = await loadLeaflet();
-  } catch (e) {
-    close();
-    return null;
+    must(await supabase.from("payment_accounts").insert({ bank, name, number }));
+    $("aBank").value = "";
+    $("aName").value = "";
+    $("aNum").value = "";
+    toast("success", "Saved", number + " was added.");
+    await loadAccs();
+  } catch (err) {
+    toast("error", "Could not save", "Only an admin can add accounts. Run hamstore_admin_fix.sql in Supabase.");
+  } finally {
+    btn.disabled = false;
   }
-  if (closed) return close;
+});
 
-  const pts = {};
-  if (cust) pts.cust = { lat: Number(cust.lat), lng: Number(cust.lng) };
-  if (shop) pts.shop = { lat: Number(shop.lat), lng: Number(shop.lng) };
-  if (lastMe) pts.me = { ...lastMe };
+showLoading("Loading deliveries...");
+await loadMore();
+await loadAccs();
+hideLoading();
 
-  map = L.map(q(".hsm-map"), { zoomControl: false, tap: true, zoomSnap: 0.5 });
-  L.control.zoom({ position: "topleft" }).addTo(map);
-  L.tileLayer(TILE, { subdomains: "abcd", maxZoom: 20, attribution: ATTR }).addTo(map);
-  const first = pts.cust || pts.shop;
-  map.setView([first.lat, first.lng], 15);
-  setTimeout(() => map.invalidateSize(), 300);
-
-  const pinIcon = html => L.divIcon({ className: "", iconSize: [54, 66], iconAnchor: [27, 66], popupAnchor: [0, -62], html });
-  if (pts.cust) L.marker([pts.cust.lat, pts.cust.lng], { icon: pinIcon('<div class="hsm-pin cust"><i class="fa-solid fa-house"></i></div>') }).addTo(map).bindPopup(`<b>${esc(cust.name || s.cust)}</b>${cust.address ? "<br>" + esc(cust.address) : ""}`);
-  if (pts.shop) L.marker([pts.shop.lat, pts.shop.lng], { icon: pinIcon(`<div class="hsm-pin shop">${safeUrl(shop.image) ? `<img src="${esc(shop.image)}" alt="">` : '<i class="fa-solid fa-store"></i>'}</div>`) }).addTo(map).bindPopup(`<b>${esc(shop.name || s.shop)}</b>${shop.address ? "<br>" + esc(shop.address) : ""}`);
-
-  const setMe = () => {
-    if (!pts.me) return;
-    if (meMarker) meMarker.setLatLng([pts.me.lat, pts.me.lng]);
-    else meMarker = L.marker([pts.me.lat, pts.me.lng], { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="hsm-me"><i></i><b></b></div>' }), zIndexOffset: 500 }).addTo(map).bindTooltip(s.you);
-  };
-
-  const defs = () => {
-    const d = [];
-    if (pts.me && pts.cust) d.push(["mc", s.mc, pts.me, pts.cust]);
-    if (pts.me && pts.shop) d.push(["ms", s.ms, pts.me, pts.shop]);
-    if (pts.cust && pts.shop) d.push(["cs", s.cs, pts.cust, pts.shop]);
-    return d;
-  };
-
-  const paintTabs = () => {
-    const d = defs();
-    tabsEl.hidden = d.length < 2;
-    tabsEl.innerHTML = d.map(x => `<button type="button" class="${x[0] === sel ? "on" : ""}" data-k="${x[0]}">${x[1]}</button>`).join("");
-  };
-
-  const fitPad = () => {
-    const side = matchMedia("(orientation:landscape) and (max-height:560px)").matches;
-    return side
-      ? { paddingTopLeft: [60, 70], paddingBottomRight: [Math.min(400, innerWidth * 0.46) + 30, 30] }
-      : { paddingTopLeft: [30, 80], paddingBottomRight: [30, Math.round(innerHeight * 0.46)] };
-  };
-
-  let fitFn = () => {};
-
-  const draw = async () => {
-    const d = defs();
-    const cur = d.find(x => x[0] === sel) || d[0];
-    const dest = pts.cust || pts.shop;
-    if (!cur) {
-      top.textContent = s.allow;
-      setEta("-", "-", "-");
-      stepsEl.innerHTML = "";
-      tabsEl.hidden = true;
-      gm.href = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`;
-      const b = L.latLngBounds(Object.values(pts).map(p => [p.lat, p.lng]));
-      fitFn = () => (Object.keys(pts).length > 1 ? map.fitBounds(b.pad(0.3), fitPad()) : map.setView([dest.lat, dest.lng], 16));
-      fitFn();
-      return;
-    }
-    sel = cur[0];
-    lastDraw = Date.now();
-    paintTabs();
-    top.textContent = s.finding;
-    const a = cur[2];
-    const b = cur[3];
-    gm.href = `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lng}&destination=${b.lat},${b.lng}&travelmode=driving`;
-    const tok = ++drawTok;
-    const r = await osrm(a, b);
-    if (closed || tok !== drawTok) return;
-    top.textContent = `${fmtKm(r.km)} · ${fmtMin(r.min)} · ${r.est ? s.line : s.road}`;
-    setEta(fmtKm(r.km), fmtMin(r.min), arriveAt(r.min));
-    stepsEl.innerHTML = r.steps.map(x => `<li><i class="fa-solid ${stepIcon(x)}"></i><span>${esc(stepText(x, s))}</span><em>${x.m.type === "arrive" ? "" : fmtDist(x.d)}</em></li>`).join("");
-    clearInterval(anim);
-    clearInterval(veh);
-    layers.forEach(l => map.removeLayer(l));
-    const casing = L.polyline([], { color: "#fff", weight: 11, opacity: 0.95, lineCap: "round", lineJoin: "round" }).addTo(map);
-    const line = L.polyline([], { color: "#1a73e8", weight: 7, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(map);
-    const flow = L.polyline([], { color: "#fff", weight: 2.5, opacity: 0.9, dashArray: "2 14", className: "hsm-flow" }).addTo(map);
-    layers = [casing, line, flow];
-    const ll = r.pts;
-    const inc = Math.max(1, Math.ceil(ll.length / 60));
-    let k = 0;
-    anim = setInterval(() => {
-      k = Math.min(ll.length, k + inc);
-      const part = ll.slice(0, k);
-      casing.setLatLngs(part);
-      line.setLatLngs(part);
-      flow.setLatLngs(part);
-      if (k >= ll.length) {
-        clearInterval(anim);
-        if (ll.length > 1) {
-          const car = L.marker(ll[0], { icon: L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="hsm-veh"><i class="fa-solid fa-car-side"></i></div>' }), interactive: false, zIndexOffset: 400 }).addTo(map);
-          layers.push(car);
-          const step = Math.max(1, Math.ceil(ll.length / 140));
-          let i = 0;
-          veh = setInterval(() => {
-            i += step;
-            if (i >= ll.length) i = 0;
-            car.setLatLng(ll[i]);
-          }, 60);
-        }
-      }
-    }, 28);
-    const bounds = L.latLngBounds([[a.lat, a.lng], [b.lat, b.lng]]).pad(0.2);
-    fitFn = () => map.fitBounds(bounds, fitPad());
-    fitFn();
-  };
-
-  tabsEl.addEventListener("click", e => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    sel = b.dataset.k;
-    draw();
-  });
-  q('[data-a="fit"]').onclick = () => fitFn();
-
-  setMe();
-  draw();
-
-  if (navigator.geolocation) {
-    wid = navigator.geolocation.watchPosition(p => {
-      if (closed) return;
-      const np = { lat: p.coords.latitude, lng: p.coords.longitude };
-      const moved = pts.me ? hav(pts.me, np) * 1000 : 1e9;
-      const firstFix = !pts.me;
-      pts.me = np;
-      lastMe = np;
-      setMe();
-      if (firstFix) { sel = ""; draw(); }
-      else if (moved > 60 && Date.now() - lastDraw > 15000 && sel.startsWith("m")) draw();
-    }, () => {}, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
-  }
-
-  return close;
-}
+supabase
+  .channel("deliveries-live")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "deliveries" }, payload => {
+    const row = payload.new;
+    if (!row || rows.has(row.code)) return;
+    const r = norm(row);
+    rows.set(r.code, r);
+    fetched++;
+    upsert(r, true);
+    beep();
+    if (document.hidden) { unread++; document.title = "(" + unread + ") " + baseTitle; }
+    toast("success", "New order", r.code + " · " + naira(r.total), 8000);
+  })
+  .on("postgres_changes", { event: "UPDATE", schema: "public", table: "deliveries" }, payload => {
+    const row = payload.new;
+    const cur = row && rows.get(row.code);
+    if (!cur) return;
+    Object.assign(cur, norm(row));
+    upsert(cur, false);
+  })
+  .on("postgres_changes", { event: "DELETE", schema: "public", table: "deliveries" }, payload => {
+    const code = payload.old && payload.old.code;
+    if (!code || !rows.has(code)) return;
+    rows.delete(code);
+    const el = cardEl(code);
+    if (el) el.remove();
+    counts();
+    emptyCheck();
+  })
+  .subscribe();
