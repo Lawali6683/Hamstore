@@ -8,29 +8,30 @@
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
 <link rel="stylesheet" href="allui.css">
 <link rel="stylesheet" href="ui2.css">
+<link rel="stylesheet" href="adminmap.css">
 </head>
 <body>
-<main class="wrap">
+<main class="wrap fm">
   <div class="topline">
-    <h2>Fleet map</h2>
+    <h2><span class="fm-dot"></span>Fleet map</h2>
     <a class="ghost sm" href="adminveh.html"><i class="fa-solid fa-plus"></i>Register vehicle</a>
   </div>
   <div class="stats">
-    <div class="stat"><b id="nLive">0</b><small>Live</small></div>
-    <div class="stat"><b id="nOff">0</b><small>Offline</small></div>
-    <div class="stat"><b id="nAll">0</b><small>Total</small></div>
+    <div class="stat live"><i class="fa-solid fa-satellite-dish"></i><b id="nLive">0</b><small>Live</small></div>
+    <div class="stat off"><i class="fa-solid fa-plug-circle-xmark"></i><b id="nOff">0</b><small>Offline</small></div>
+    <div class="stat all"><i class="fa-solid fa-truck"></i><b id="nAll">0</b><small>Total</small></div>
   </div>
-  <div class="chips" id="tabs" style="margin:0">
+  <div class="chips" id="tabs">
     <button class="chip on" data-t="live">Live</button>
     <button class="chip" data-t="off">Offline</button>
     <button class="chip" data-t="all">All</button>
   </div>
   <div class="mapgrid">
-    <div>
+    <div class="fm-side">
       <div class="vitems" id="list"></div>
       <div class="empty" id="empty" hidden><i class="fa-solid fa-truck" style="font-size:28px"></i><p>No vehicles here.</p></div>
     </div>
-    <div>
+    <div class="fm-main">
       <div class="map fleet" id="fmap"></div>
       <div class="panel vdetail" id="detail" hidden></div>
     </div>
