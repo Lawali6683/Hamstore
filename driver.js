@@ -1,44 +1,54 @@
 import { supabase } from "./supabase.js";
-import { t, getLang, initLang, esc, naira, toast, thumb, setDevice } from "./pub.js";
+import { getLang, initLang, esc, naira, toast, thumb, setDevice } from "./pub.js";
 import { openRouteMap } from "./hsmap.js";
 
 const $ = id => document.getElementById(id);
 const JSQR = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
+const KEY = "hs_dc";
 
 const X = {
   en: {
-    camDenied: "Camera is blocked. Allow camera access or type the code.", camNone: "No camera found on this device.",
-    scanning: "Point the camera at the QR code.", found: "Code found", noQr: "No QR code found in that photo.",
-    open: "Opening order...", notfound: "This code does not exist. Check it and try again.", wait: "Too many wrong attempts. Wait 10 minutes.",
-    invalid: "Enter the full order code.", net: "Network problem. Check your internet and try again.", paid: "Goods paid. Check the items below.",
-    used: "This code was already used. Goods were delivered.", usedAt: "Delivered", items: "Goods to deliver", total: "Total paid", cust: "Customer",
-    proof: "Payment proof", map: "Show route on map", gmap: "Open in Google Maps", call: "Call customer", wa: "WhatsApp", confirm: "Confirm delivery",
-    cTitle: "Confirm delivery", cText: "Press confirm only after the customer has received all the goods.", dName: "Your name", dNote: "Note (optional)",
-    cancel: "Cancel", yes: "Confirm", far: "You are {km} from the delivery point. Confirm anyway?", nameReq: "Enter your name.",
-    done: "Delivery confirmed", doneP: "The customer's address, phone and payment proof were removed. This code can no longer open the order.",
-    another: "Scan another order", noloc: "Customer location was not shared. Use the address or call the customer.", when: "Ordered", carton: "Carton"
+    open: "Opening delivery...", needD: "Enter the office code first. The customer code is kept for the next step.", invalid: "Enter the full code.",
+    notfound: "This code does not exist. Check it and try again.", cancelled: "The office cancelled this code. Ask for a new one.",
+    wait: "Too many wrong attempts. Wait 10 minutes.", net: "Network problem. Check your internet and try again.",
+    doneAlready: "This delivery is already completed.", deliverTo: "Deliver to", call: "Call", wa: "WhatsApp", gmaps: "Open in Google Maps",
+    copy: "Copy address", copied: "Address copied", noPos: "The customer did not share a map location. Use the address or call him.",
+    searchMap: "Search the address in Google Maps", camDenied: "Camera is blocked. Allow camera access or type the code.", camNone: "No camera found on this device.",
+    scanning: "Point the camera at the QR code.", found: "Code found. Checking...", noQr: "No QR code found in that photo.", checking: "Checking the code...",
+    mismatch: "This code does not belong to this delivery. Check the slip.", used: "This order was already delivered.", paid: "Payment confirmed. Check the goods below.",
+    items: "Goods to hand over", total: "Total paid", proof: "Payment proof", confirm: "Goods handed over - confirm delivery", cTitle: "Confirm delivery",
+    cText: "Press confirm only after the customer has received all the goods.", dName: "Your name", dNote: "Note (optional)", cancel: "Cancel", yes: "Confirm",
+    far: "You are {km} from the delivery point. Confirm anyway?", nameReq: "Enter your name.", done: "Delivery confirmed",
+    doneP: "The customer's address, phone and payment proof were removed. These codes cannot open the order again.", another: "Start another delivery",
+    carton: "Carton", ordered: "Ordered"
   },
   ha: {
-    camDenied: "An hana kyamara. Ka ba da izini ko ka rubuta lambar.", camNone: "Ba a sami kyamara a na'urar nan ba.",
-    scanning: "Ka nuna kyamara ga QR code.", found: "An samo lamba", noQr: "Ba a sami QR code a hoton ba.",
-    open: "Ana buɗe oda...", notfound: "Wannan lambar babu ita. Ka duba ka sake gwadawa.", wait: "Ka yi kuskure sau da yawa. Ka jira minti 10.",
-    invalid: "Ka shigar da cikakkiyar lambar oda.", net: "Matsalar intanet. Ka duba ka sake gwadawa.", paid: "An biya kayan. Ka duba abubuwan da ke ƙasa.",
-    used: "An riga an yi amfani da wannan lambar. An isar da kayan.", usedAt: "An isar", items: "Kayan da za a kai", total: "Jimlar da aka biya", cust: "Kwastoma",
-    proof: "Shaidar biya", map: "Nuna hanya a taswira", gmap: "Buɗe a Google Maps", call: "Kira kwastoma", wa: "WhatsApp", confirm: "Tabbatar da isarwa",
-    cTitle: "Tabbatar da isarwa", cText: "Ka danna tabbatarwa ne kawai bayan kwastoma ya karɓi duk kayan.", dName: "Sunanka", dNote: "Bayani (zaɓi)",
-    cancel: "Soke", yes: "Tabbatar", far: "Kana {km} daga wurin isarwa. Za ka tabbatar ko da haka?", nameReq: "Ka rubuta sunanka.",
-    done: "An tabbatar da isarwa", doneP: "An share adireshin kwastoma, wayarsa da shaidar biyansa. Wannan lambar ba za ta sake buɗe odar ba.",
-    another: "Duba wata oda", noloc: "Kwastoma bai tura wurinsa ba. Ka yi amfani da adireshi ko ka kira shi.", when: "An yi oda", carton: "Kwali"
+    open: "Ana buɗe isarwa...", needD: "Ka shigar da lambar ofis tukuna. Ana adana lambar kwastoma don mataki na gaba.", invalid: "Ka shigar da cikakkiyar lamba.",
+    notfound: "Wannan lambar babu ita. Ka duba ka sake gwadawa.", cancelled: "Ofis ya soke wannan lambar. Ka nemi sabuwa.",
+    wait: "Ka yi kuskure sau da yawa. Ka jira minti 10.", net: "Matsalar intanet. Ka duba ka sake gwadawa.",
+    doneAlready: "An riga an kammala wannan isarwa.", deliverTo: "Kai wa", call: "Kira", wa: "WhatsApp", gmaps: "Buɗe a Google Maps",
+    copy: "Kwafi adireshi", copied: "An kwafi adireshi", noPos: "Kwastoma bai tura wurin taswira ba. Ka yi amfani da adireshi ko ka kira shi.",
+    searchMap: "Nemo adireshin a Google Maps", camDenied: "An hana kyamara. Ka ba da izini ko ka rubuta lambar.", camNone: "Ba a sami kyamara a na'urar nan ba.",
+    scanning: "Ka nuna kyamara ga QR code.", found: "An samo lamba. Ana dubawa...", noQr: "Ba a sami QR code a hoton ba.", checking: "Ana duba lambar...",
+    mismatch: "Wannan lambar ba ta wannan isarwa ba ce. Ka duba slip ɗin.", used: "An riga an kai wannan odar.", paid: "An tabbatar da biya. Ka duba kayan da ke ƙasa.",
+    items: "Kayan da za a ba shi", total: "Jimlar da aka biya", proof: "Shaidar biya", confirm: "An ba da kayan - tabbatar da isarwa", cTitle: "Tabbatar da isarwa",
+    cText: "Ka danna tabbatarwa ne kawai bayan kwastoma ya karɓi duk kayan.", dName: "Sunanka", dNote: "Bayani (zaɓi)", cancel: "Soke", yes: "Tabbatar",
+    far: "Kana {km} daga wurin isarwa. Za ka tabbatar ko da haka?", nameReq: "Ka rubuta sunanka.", done: "An tabbatar da isarwa",
+    doneP: "An share adireshin kwastoma, wayarsa da shaidar biyansa. Waɗannan lambobin ba za su sake buɗe odar ba.", another: "Fara wata isarwa",
+    carton: "Kwali", ordered: "An yi oda"
   }
 };
 const x = k => (X[getLang()] || X.en)[k] ?? k;
 
+let dispatch = null;
+let verified = null;
+let closeMap = null;
+let pendingCustomer = "";
 let stream = null;
+let live = false;
 let timer = 0;
 let detector = null;
 let jsqrP = null;
-let live = false;
-let current = null;
 let busy = false;
 
 const telLink = p => "tel:" + String(p || "").replace(/[^\d+]/g, "");
@@ -49,11 +59,30 @@ const waNum = p => {
   return d;
 };
 const safeUrl = u => (/^https?:\/\//i.test(String(u || "")) ? String(u) : "");
+const hasPos = d => d && typeof d.lat === "number" && typeof d.lng === "number";
 const hav = (a, b) => {
-  const rad = d => (d * Math.PI) / 180;
+  const rad = v => (v * Math.PI) / 180;
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(h));
 };
+
+function setMsg(id, text, kind) {
+  const el = $(id);
+  el.textContent = text || "";
+  el.className = "dmsg" + (kind ? " " + kind : "");
+}
+
+function setStep(n) {
+  [...$("dflow").children].forEach((li, i) => li.classList.toggle("on", i < n));
+}
+
+function show(id, on) {
+  $(id).hidden = !on;
+}
+
+function errText(code) {
+  return code === "wait" ? x("wait") : code === "invalid" ? x("invalid") : code === "cancelled" ? x("cancelled") : code === "mismatch" ? x("mismatch") : code === "used" ? x("used") : x("notfound");
+}
 
 function loadJsQr() {
   if (window.jsQR) return Promise.resolve(window.jsQR);
@@ -78,19 +107,19 @@ function extractCode(text) {
   return s;
 }
 
-function msg(text, bad) {
-  const el = $("scanMsg");
-  el.textContent = text || "";
-  el.style.color = bad ? "var(--r2)" : "var(--g2)";
-}
-
 function stopScan() {
   live = false;
   clearTimeout(timer);
   if (stream) stream.getTracks().forEach(z => z.stop());
   stream = null;
   $("vid").srcObject = null;
-  document.querySelector(".vwrap").classList.remove("live");
+  $("vwrap").classList.remove("live");
+  $("scanStop").hidden = true;
+}
+
+async function setupDetector() {
+  if (detector || !("BarcodeDetector" in window)) return;
+  try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { detector = null; }
 }
 
 async function decodeSource(src, w, h) {
@@ -112,11 +141,6 @@ async function decodeSource(src, w, h) {
   return r ? r.data : "";
 }
 
-async function setupDetector() {
-  if (detector || !("BarcodeDetector" in window)) return;
-  try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { detector = null; }
-}
-
 async function loop() {
   if (!live) return;
   const v = $("vid");
@@ -126,8 +150,8 @@ async function loop() {
     if (raw && live) {
       stopScan();
       if (navigator.vibrate) navigator.vibrate(80);
-      msg(x("found"));
-      lookup(extractCode(raw));
+      setMsg("vMsg", x("found"), "good");
+      verifyCode(extractCode(raw));
       return;
     }
   }
@@ -136,25 +160,27 @@ async function loop() {
 
 async function startScan() {
   stopScan();
-  msg("");
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return msg(x("camNone"), true);
+  setMsg("vMsg", "");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return setMsg("vMsg", x("camNone"), "bad");
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }, audio: false });
   } catch (e) {
-    return msg(e && e.name === "NotFoundError" ? x("camNone") : x("camDenied"), true);
+    return setMsg("vMsg", e && e.name === "NotFoundError" ? x("camNone") : x("camDenied"), "bad");
   }
   await setupDetector();
   if (!detector) loadJsQr();
   const v = $("vid");
   v.srcObject = stream;
   try { await v.play(); } catch (e) {}
-  document.querySelector(".vwrap").classList.add("live");
-  msg(x("scanning"));
+  $("vwrap").classList.add("live");
+  $("scanStop").hidden = false;
+  setMsg("vMsg", x("scanning"), "good");
   live = true;
   loop();
 }
 
 $("scanStart").onclick = startScan;
+$("scanStop").onclick = () => { stopScan(); setMsg("vMsg", ""); };
 
 $("scanFile").addEventListener("change", async e => {
   const f = e.target.files[0];
@@ -165,96 +191,184 @@ $("scanFile").addEventListener("change", async e => {
     const bmp = await createImageBitmap(f);
     const scale = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
     const raw = await decodeSource(bmp, Math.round(bmp.width * scale), Math.round(bmp.height * scale));
-    if (raw) lookup(extractCode(raw));
-    else msg(x("noQr"), true);
+    if (raw) verifyCode(extractCode(raw));
+    else setMsg("vMsg", x("noQr"), "bad");
   } catch (err) {
-    msg(x("noQr"), true);
+    setMsg("vMsg", x("noQr"), "bad");
   }
 });
 
 function setTab(scan) {
   $("tabScan").classList.toggle("on", scan);
   $("tabType").classList.toggle("on", !scan);
-  $("scanBox").hidden = !scan;
-  $("typeBox").hidden = scan;
-  if (scan) startScan();
-  else { stopScan(); setTimeout(() => $("codeIn").focus(), 50); }
+  show("scanBox", scan);
+  show("typeBox", !scan);
+  if (!scan) {
+    stopScan();
+    setTimeout(() => $("codeIn").focus(), 60);
+  }
 }
 $("tabScan").onclick = () => setTab(true);
 $("tabType").onclick = () => setTab(false);
+
+$("dcIn").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""); });
 $("codeIn").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9/\-\s]/g, ""); });
-$("typeBox").addEventListener("submit", e => {
-  e.preventDefault();
-  lookup($("codeIn").value.trim());
-});
 
-function showResult(html) {
-  const r = $("result");
-  r.innerHTML = html;
-  r.hidden = false;
-  r.scrollIntoView({ behavior: "smooth", block: "start" });
+function copyText(text, msg) {
+  navigator.clipboard.writeText(text).then(() => toast("ok", msg), () => {});
 }
 
-function errBox(text) {
-  showResult(`<div class="pn"><div class="banner bad"><i class="fa-solid fa-circle-exclamation"></i><span>${esc(text)}</span></div></div>`);
-}
-
-async function lookup(code) {
-  if (busy) return;
-  const c = String(code || "").trim();
-  if (c.replace(/[^A-Za-z0-9]/g, "").length < 4) return errBox(x("invalid"));
-  busy = true;
-  msg(x("open"));
-  try {
-    const { data, error } = await supabase.rpc("driver_lookup", { p_code: c });
-    if (error) throw error;
-    if (!data || !data.ok) {
-      const k = data && data.code;
-      return errBox(k === "wait" ? x("wait") : k === "invalid" ? x("invalid") : x("notfound"));
-    }
-    current = data;
-    renderOrder();
-  } catch (e) {
-    errBox(x("net"));
-  } finally {
-    busy = false;
-    msg("");
-  }
-}
-
-function renderOrder() {
-  const d = current;
+function renderInfo() {
+  const d = dispatch;
   if (!d) return;
-  if (d.status === "delivered") {
-    const when = d.delivered_at ? new Date(Number(d.delivered_at)).toLocaleString() : "";
-    return showResult(`<div class="pn rcard"><div class="rcode"><b>${esc(d.code)}</b></div><div class="banner used"><i class="fa-solid fa-ban"></i><span>${esc(x("used"))}${when ? `<br><small>${esc(x("usedAt"))}: ${esc(when)}</small>` : ""}</span></div><button class="bt" type="button" data-a="again"><i class="fa-solid fa-qrcode"></i>${esc(x("another"))}</button></div>`);
+  const pos = hasPos(d);
+  const gq = pos ? `${d.lat},${d.lng}` : encodeURIComponent(d.address || "");
+  const gUrl = pos ? `https://www.google.com/maps/dir/?api=1&destination=${gq}&travelmode=driving` : `https://www.google.com/maps/search/?api=1&query=${gq}`;
+  $("dInfo").innerHTML = `<div class="dcard">
+    <div class="dwho"><i class="fa-solid fa-house-user"></i><div><small>${esc(x("deliverTo"))}</small><h2>${esc(d.name || "")}</h2></div></div>
+    ${d.phone ? `<a class="dtel" href="${telLink(d.phone)}"><i class="fa-solid fa-phone"></i><b>${esc(d.phone)}</b><span>${esc(x("call"))}</span></a>` : ""}
+    <p class="dadr"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || "")}</span>${d.address ? `<button type="button" data-a="copy" aria-label="${esc(x("copy"))}"><i class="fa-regular fa-copy"></i></button>` : ""}</p>
+    <div class="dbtns">
+      <a class="bt blue" target="_blank" rel="noopener" href="${gUrl}"><i class="fa-solid fa-diamond-turn-right"></i>${esc(pos ? x("gmaps") : x("searchMap"))}</a>
+      ${d.phone ? `<a class="bt wa" target="_blank" rel="noopener" href="https://wa.me/${waNum(d.phone)}"><i class="fa-brands fa-whatsapp"></i>${esc(x("wa"))}</a>` : ""}
+    </div>
+  </div>`;
+}
+
+function mountMap() {
+  const d = dispatch;
+  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
+  const m = $("mapMount");
+  if (!d) { m.innerHTML = ""; return; }
+  if (!hasPos(d)) {
+    m.innerHTML = `<div class="mapnote"><span>${esc(x("noPos"))}</span></div>`;
+    return;
   }
-  const items = Array.isArray(d.items) ? d.items : [];
-  const hasPos = typeof d.lat === "number" && typeof d.lng === "number";
-  const gq = hasPos ? `${d.lat},${d.lng}` : encodeURIComponent(d.address || "");
-  const proof = safeUrl(d.proof);
+  m.innerHTML = "";
+  openRouteMap({
+    mount: m,
+    lang: getLang(),
+    cust: { lat: d.lat, lng: d.lng, name: d.name, address: d.address, phone: d.phone },
+    top: { name: d.name, phone: d.phone }
+  }).then(c => { closeMap = c; });
+}
+
+function renderProof() {
+  const v = verified;
+  if (!v) return;
+  const items = Array.isArray(v.items) ? v.items : [];
+  const proof = safeUrl(v.proof);
   const rows = items.map(i => `<div class="grow"><img src="${esc(safeUrl(i.image) ? thumb(i.image, "t") : "")}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(i.name)}</b><small>${esc(x("carton"))} · ${esc(naira(Number(i.price) || 0))}</small></div><div class="q">×${esc(i.qty)}</div></div>`).join("");
-  showResult(`<div class="pn rcard">
-    <div class="rcode"><b>${esc(d.code)}</b><span>${esc(x("when"))}: ${esc(new Date(Number(d.created_at) || Date.now()).toLocaleString())}</span></div>
+  $("sProof").innerHTML = `<div class="rcard">
+    <div class="rcode"><b>${esc(v.code)}</b><span>${esc(x("ordered"))}: ${esc(new Date(Number(v.created_at) || Date.now()).toLocaleString())}</span></div>
     <div class="banner ok"><i class="fa-solid fa-circle-check"></i><span>${esc(x("paid"))}</span></div>
     <div class="glist"><small class="lbl">${esc(x("items"))}</small>${rows}</div>
-    <div class="gtot"><span>${esc(x("total"))}</span><b>${esc(naira(Number(d.total) || 0))}</b></div>
-    <div class="cinfo">
-      <div class="r"><i class="fa-solid fa-user"></i><span>${esc(d.name || "")}</span></div>
-      <div class="r"><i class="fa-solid fa-phone"></i><span>${esc(d.phone || "")}</span></div>
-      <div class="r"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || "")}</span></div>
-      ${hasPos ? "" : `<div class="r"><i class="fa-solid fa-circle-info"></i><span>${esc(x("noloc"))}</span></div>`}
-    </div>
+    <div class="gtot"><span>${esc(x("total"))}</span><b>${esc(naira(Number(v.total) || 0))}</b></div>
     ${proof ? `<div class="proofbox"><small>${esc(x("proof"))}</small><img src="${esc(proof)}" alt="" data-zoom="${esc(proof)}"></div>` : ""}
-    <div class="dbtns">
-      ${hasPos ? `<button class="bt blue" type="button" data-a="map"><i class="fa-solid fa-route"></i>${esc(x("map"))}</button>` : ""}
-      <a class="bt ghost" target="_blank" rel="noopener" href="${hasPos ? `https://www.google.com/maps/dir/?api=1&destination=${gq}&travelmode=driving` : `https://www.google.com/maps/search/?api=1&query=${gq}`}"><i class="fa-solid fa-diamond-turn-right"></i>${esc(x("gmap"))}</a>
-      <a class="bt" href="${telLink(d.phone)}"><i class="fa-solid fa-phone"></i>${esc(x("call"))}</a>
-      <a class="bt wa" target="_blank" rel="noopener" href="https://wa.me/${waNum(d.phone)}"><i class="fa-brands fa-whatsapp"></i>${esc(x("wa"))}</a>
-    </div>
     <button class="bt red big wide" type="button" data-a="confirm"><i class="fa-solid fa-check-double"></i>${esc(x("confirm"))}</button>
-  </div>`);
+  </div>`;
 }
+
+function resetAll() {
+  stopScan();
+  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
+  dispatch = null;
+  verified = null;
+  pendingCustomer = "";
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  $("dcIn").value = "";
+  $("codeIn").value = "";
+  $("dInfo").innerHTML = "";
+  $("mapMount").innerHTML = "";
+  setMsg("dMsg", "");
+  setMsg("vMsg", "");
+  ["sDelivery", "sVerify", "sProof", "sDone"].forEach(id => show(id, false));
+  show("sDispatch", true);
+  setStep(1);
+  setTab(true);
+  scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function openDispatch(code) {
+  if (busy) return;
+  const c = String(code || "").trim();
+  if (c.replace(/[^A-Za-z0-9]/g, "").length < 4) return setMsg("dMsg", x("invalid"), "bad");
+  busy = true;
+  $("dGo").disabled = true;
+  setMsg("dMsg", x("open"));
+  try {
+    const { data, error } = await supabase.rpc("dispatch_lookup", { p_dcode: c });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      return setMsg("dMsg", errText(data && data.code), "bad");
+    }
+    if (data.status === "done") {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      return setMsg("dMsg", x("doneAlready"), "bad");
+    }
+    dispatch = data;
+    try { localStorage.setItem(KEY, data.dcode); } catch (e) {}
+    setMsg("dMsg", "");
+    show("sDispatch", false);
+    show("sDelivery", true);
+    show("sVerify", true);
+    setStep(2);
+    renderInfo();
+    mountMap();
+    if (pendingCustomer) {
+      const pc = pendingCustomer;
+      pendingCustomer = "";
+      busy = false;
+      verifyCode(pc);
+    }
+  } catch (e) {
+    console.error(e);
+    setMsg("dMsg", x("net"), "bad");
+  } finally {
+    busy = false;
+    $("dGo").disabled = false;
+  }
+}
+
+async function verifyCode(code) {
+  if (!dispatch) {
+    pendingCustomer = String(code || "").trim();
+    return setMsg("dMsg", x("needD"), "bad");
+  }
+  if (busy) return;
+  const c = String(code || "").trim();
+  if (c.replace(/[^A-Za-z0-9]/g, "").length < 4) return setMsg("vMsg", x("invalid"), "bad");
+  busy = true;
+  setMsg("vMsg", x("checking"));
+  try {
+    const { data, error } = await supabase.rpc("dispatch_verify", { p_dcode: dispatch.dcode, p_code: c });
+    if (error) throw error;
+    if (!data || !data.ok) return setMsg("vMsg", errText(data && data.code), "bad");
+    verified = data;
+    stopScan();
+    setMsg("vMsg", "");
+    renderProof();
+    show("sProof", true);
+    setStep(3);
+    $("sProof").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    console.error(e);
+    setMsg("vMsg", x("net"), "bad");
+  } finally {
+    busy = false;
+  }
+}
+
+$("dForm").addEventListener("submit", e => {
+  e.preventDefault();
+  openDispatch($("dcIn").value);
+});
+
+$("typeBox").addEventListener("submit", e => {
+  e.preventDefault();
+  verifyCode($("codeIn").value);
+});
 
 function getPos(timeout) {
   return new Promise(res => {
@@ -266,85 +380,95 @@ function getPos(timeout) {
 function askConfirm(extra) {
   return new Promise(res => {
     const dlg = $("dlg");
-    const saved = localStorage.getItem("hs_driver") || "";
+    const saved = localStorage.getItem("hs_driver") || (dispatch && dispatch.driver_name) || "";
     dlg.innerHTML = `<div class="dlgc"><h3>${esc(x("cTitle"))}</h3><p>${esc(x("cText"))}</p>${extra ? `<div class="warnbox">${esc(extra)}</div>` : ""}<div class="fld"><input id="dgName" type="text" maxlength="60" value="${esc(saved)}" placeholder="${esc(x("dName"))}" autocomplete="name"></div><div class="fld"><input id="dgNote" type="text" maxlength="200" placeholder="${esc(x("dNote"))}"></div><div class="row"><button class="bt ghost" type="button" data-r="no">${esc(x("cancel"))}</button><button class="bt red" type="button" data-r="yes"><i class="fa-solid fa-check"></i>${esc(x("yes"))}</button></div></div>`;
     dlg.hidden = false;
-    const done = v => { dlg.hidden = true; dlg.innerHTML = ""; dlg.onclick = null; res(v); };
+    const finish = v => { dlg.hidden = true; dlg.innerHTML = ""; dlg.onclick = null; res(v); };
     dlg.onclick = e => {
       const b = e.target.closest("[data-r]");
-      if (e.target === dlg || (b && b.dataset.r === "no")) return done(null);
+      if (e.target === dlg || (b && b.dataset.r === "no")) return finish(null);
       if (b && b.dataset.r === "yes") {
         const name = $("dgName").value.trim();
         if (name.length < 2) return toast("error", x("nameReq"));
         try { localStorage.setItem("hs_driver", name); } catch (err) {}
-        done({ name, note: $("dgNote").value.trim() });
+        finish({ name, note: $("dgNote").value.trim() });
       }
     };
   });
 }
 
 async function confirmDelivery() {
-  if (!current || busy) return;
+  if (!dispatch || !verified || busy) return;
   const pos = await getPos(6000);
   let extra = "";
-  if (pos && typeof current.lat === "number" && typeof current.lng === "number") {
-    const d = hav(pos, { lat: current.lat, lng: current.lng });
+  if (pos && hasPos(verified)) {
+    const d = hav(pos, { lat: verified.lat, lng: verified.lng });
     if (d > 0.4) extra = x("far").replace("{km}", d < 10 ? d.toFixed(1) + " km" : Math.round(d) + " km");
   }
   const ans = await askConfirm(extra);
   if (!ans) return;
   busy = true;
   try {
-    const { data, error } = await supabase.rpc("driver_confirm", { p_code: current.code, p_driver: ans.name, p_note: ans.note || null, p_lat: pos ? pos.lat : null, p_lng: pos ? pos.lng : null });
+    const { data, error } = await supabase.rpc("dispatch_confirm", {
+      p_dcode: dispatch.dcode,
+      p_code: verified.code,
+      p_driver: ans.name,
+      p_note: ans.note || null,
+      p_lat: pos ? pos.lat : null,
+      p_lng: pos ? pos.lng : null
+    });
     if (error) throw error;
-    if (!data || !data.ok) return toast("error", data && data.code === "wait" ? x("wait") : x("notfound"));
-    current = null;
-    showResult(`<div class="pn donecard"><div class="mk"><i class="fa-solid fa-check"></i></div><h2>${esc(x("done"))}</h2><p>${esc(x("doneP"))}</p><button class="bt" type="button" data-a="again"><i class="fa-solid fa-qrcode"></i>${esc(x("another"))}</button></div>`);
+    if (!data || !data.ok) return toast("error", errText(data && data.code));
+    stopScan();
+    if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
+    dispatch = null;
+    verified = null;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    ["sDelivery", "sVerify", "sProof", "sDispatch"].forEach(id => show(id, false));
+    $("sDone").innerHTML = `<div class="donecard"><div class="mk"><i class="fa-solid fa-check"></i></div><h2>${esc(x("done"))}</h2><p>${esc(x("doneP"))}</p><button class="bt" type="button" data-a="again"><i class="fa-solid fa-route"></i>${esc(x("another"))}</button></div>`;
+    show("sDone", true);
+    setStep(3);
+    scrollTo({ top: 0, behavior: "smooth" });
   } catch (e) {
+    console.error(e);
     toast("error", x("net"));
   } finally {
     busy = false;
   }
 }
 
-$("result").addEventListener("click", e => {
+document.addEventListener("click", e => {
   const z = e.target.closest("[data-zoom]");
-  if (z) { $("zoomImg").src = z.dataset.zoom; $("zoom").hidden = false; return; }
+  if (z) { $("zoomImg").src = z.dataset.zoom; show("zoom", true); return; }
   const a = e.target.closest("[data-a]");
   if (!a) return;
-  if (a.dataset.a === "map" && current) {
-    openRouteMap({
-      title: current.name,
-      lang: getLang(),
-      cust: { lat: current.lat, lng: current.lng, name: current.name, address: current.address, phone: current.phone }
-    });
-  }
   if (a.dataset.a === "confirm") confirmDelivery();
-  if (a.dataset.a === "again") {
-    current = null;
-    $("result").hidden = true;
-    $("codeIn").value = "";
-    setTab(true);
-    scrollTo({ top: 0, behavior: "smooth" });
-  }
+  if (a.dataset.a === "again") resetAll();
+  if (a.dataset.a === "copy" && dispatch) copyText(dispatch.address || "", x("copied"));
 });
 
-$("zoom").addEventListener("click", () => { $("zoom").hidden = true; });
+$("zoom").addEventListener("click", () => show("zoom", false));
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopScan(); });
 window.addEventListener("pagehide", stopScan);
-window.addEventListener("langchange", () => { if (current) renderOrder(); });
+window.addEventListener("langchange", () => {
+  if (dispatch) renderInfo();
+  if (verified) renderProof();
+});
 
 setDevice();
 initLang();
 
-const fromUrl = new URLSearchParams(location.search).get("code");
-if (fromUrl) {
-  $("scanBox").hidden = true;
-  $("typeBox").hidden = false;
-  $("tabScan").classList.remove("on");
-  $("tabType").classList.add("on");
-  $("codeIn").value = fromUrl.toUpperCase();
-  lookup(fromUrl);
-} else {
-  startScan();
+const params = new URLSearchParams(location.search);
+const urlD = params.get("d");
+const urlC = params.get("code");
+if (urlD || urlC) history.replaceState({}, "", location.pathname);
+if (urlC) pendingCustomer = urlC;
+let savedCode = "";
+try { savedCode = localStorage.getItem(KEY) || ""; } catch (e) {}
+const first = urlD || savedCode;
+if (first) {
+  $("dcIn").value = first.toUpperCase();
+  openDispatch(first);
+} else if (urlC) {
+  setMsg("dMsg", x("needD"), "bad");
 }
