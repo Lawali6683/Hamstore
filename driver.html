@@ -29,34 +29,59 @@
   <div class="wrap">
     <div class="dhead">
       <span class="oval"><span class="en">Driver</span><span class="ha">Direba</span></span>
-      <h1><span class="en">Confirm a delivery</span><span class="ha">Tabbatar da isar da kaya</span></h1>
-      <p class="s"><span class="en">Scan the QR code on the customer's slip, or type the order code he gives you.</span><span class="ha">Ka duba QR code ɗin da ke cikin slip ɗin kwastoma, ko ka rubuta lambar oda da zai ba ka.</span></p>
+      <h1><span class="en">Deliver an order</span><span class="ha">Kai oda</span></h1>
     </div>
 
-    <section class="pn" id="finder">
+    <ol class="dflow" id="dflow">
+      <li class="on"><i>1</i><span class="en">Office code</span><span class="ha">Lambar ofis</span></li>
+      <li><i>2</i><span class="en">Customer code</span><span class="ha">Lambar kwastoma</span></li>
+      <li><i>3</i><span class="en">Confirm</span><span class="ha">Tabbatar</span></li>
+    </ol>
+
+    <section class="pn" id="sDispatch">
+      <h2><span class="en">1. Enter the code from the office</span><span class="ha">1. Shigar da lambar da ofis ya ba ka</span></h2>
+      <p class="s"><span class="en">The office sent you a code that starts with DR. It opens the delivery address and the route.</span><span class="ha">Ofis ya tura maka lamba da ke farawa da DR. Tana buɗe adireshin isarwa da hanya.</span></p>
+      <form id="dForm" autocomplete="off">
+        <div class="fld"><input id="dcIn" type="text" maxlength="20" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="DR-XXXXXX"></div>
+        <button class="bt wide" id="dGo" type="submit"><i class="fa-solid fa-route"></i><span class="en">Open delivery</span><span class="ha">Buɗe isarwa</span></button>
+      </form>
+      <p class="dmsg" id="dMsg"></p>
+    </section>
+
+    <section class="pn" id="sDelivery" hidden>
+      <div id="dInfo"></div>
+      <div id="mapMount" class="mapmount"></div>
+    </section>
+
+    <section class="pn" id="sVerify" hidden>
+      <h2><span class="en">2. Customer's slip code</span><span class="ha">2. Lambar slip ɗin kwastoma</span></h2>
+      <p class="s"><span class="en">When you reach the customer, scan the QR code on his slip or type the code on it. This opens the goods he paid for.</span><span class="ha">Idan ka isa wurin kwastoma, ka duba QR code ɗin da ke slip ɗinsa ko ka rubuta lambar. Wannan yana buɗe kayan da ya biya.</span></p>
       <div class="dtabs">
         <button type="button" id="tabScan" class="on"><i class="fa-solid fa-qrcode"></i><span class="en">Scan QR</span><span class="ha">Duba QR</span></button>
         <button type="button" id="tabType"><i class="fa-solid fa-keyboard"></i><span class="en">Type code</span><span class="ha">Rubuta lamba</span></button>
       </div>
       <div id="scanBox">
-        <div class="vwrap">
+        <div class="vwrap" id="vwrap">
           <video id="vid" playsinline muted></video>
           <div class="vframe"><i></i><i></i><i></i><i></i><u></u></div>
-          <div class="vhint" id="vHint"><i class="fa-solid fa-camera"></i></div>
+          <button class="vstart" id="scanStart" type="button"><i class="fa-solid fa-camera"></i><span class="en">Tap to turn on the camera</span><span class="ha">Danna don kunna kyamara</span></button>
         </div>
         <div class="scanrow">
-          <button class="bt" id="scanStart" type="button"><i class="fa-solid fa-camera"></i><span class="en">Start camera</span><span class="ha">Kunna kyamara</span></button>
-          <label class="bt ghost"><i class="fa-solid fa-image"></i><span class="en">From photo</span><span class="ha">Daga hoto</span><input id="scanFile" type="file" accept="image/*" hidden></label>
+          <button class="bt ghost" id="scanStop" type="button" hidden><i class="fa-solid fa-video-slash"></i><span class="en">Turn off camera</span><span class="ha">Kashe kyamara</span></button>
+          <label class="bt ghost"><i class="fa-solid fa-image"></i><span class="en">From a photo</span><span class="ha">Daga hoto</span><input id="scanFile" type="file" accept="image/*" hidden></label>
         </div>
-        <p class="s" id="scanMsg"></p>
+        <p class="dmsg" id="scanMsg"></p>
       </div>
       <form id="typeBox" hidden autocomplete="off">
         <div class="fld"><input id="codeIn" type="text" maxlength="40" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="HS-XXXXXX"></div>
-        <button class="bt wide" type="submit"><i class="fa-solid fa-magnifying-glass"></i><span class="en">Open order</span><span class="ha">Buɗe oda</span></button>
+        <button class="bt wide" type="submit"><i class="fa-solid fa-magnifying-glass"></i><span class="en">Check the code</span><span class="ha">Duba lambar</span></button>
       </form>
+      <p class="dmsg" id="vMsg"></p>
     </section>
 
-    <section id="result" hidden></section>
+    <section class="pn" id="sProof" hidden></section>
+
+    <section class="pn" id="sDone" hidden></section>
   </div>
 </main>
 
