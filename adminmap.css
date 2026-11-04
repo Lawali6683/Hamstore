@@ -1,0 +1,27 @@
+.fm{padding-bottom:70px}
+.fm .topline{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.fm .topline h2{display:flex;align-items:center;gap:10px;margin:0}
+.fm-dot{width:11px;height:11px;border-radius:50%;background:#2fe08a;animation:fmpulse 1.6s ease-out infinite}
+@keyframes fmpulse{0%{box-shadow:0 0 0 0 rgba(47,224,138,.8)}100%{box-shadow:0 0 0 12px rgba(47,224,138,0)}}
+.fm .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.fm .stat{position:relative;display:grid;gap:2px;padding:14px 16px;border-radius:20px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);overflow:hidden}
+.fm .stat i{position:absolute;right:12px;top:12px;font-size:20px;opacity:.25}
+.fm .stat b{font:900 28px ui-monospace,Menlo,monospace;color:#ffd166}
+.fm .stat small{opacity:.8;font-weight:700}
+.fm .stat.live{background:linear-gradient(135deg,rgba(47,179,109,.35),rgba(47,179,109,.1));border-color:rgba(47,224,138,.5)}
+.fm .stat.off{background:linear-gradient(135deg,rgba(224,58,58,.28),rgba(224,58,58,.08));border-color:rgba(255,120,120,.4)}
+.fm .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin:0 0 14px}
+.fm .mapgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.fm .fm-main{order:-1;display:grid;gap:14px;min-width:0}
+.fm .fm-side{min-width:0}
+@media (min-width:980px){
+  .fm .mapgrid{grid-template-columns:minmax(300px,380px) minmax(0,1fr)}
+  .fm .fm-main{order:0;position:sticky;top:78px}
+  .fm .vitems{max-height:calc(100vh - 220px);overflow-y:auto;padding-right:4px}
+}
+.fm .map.fleet{height:clamp(320px,62vh,640px);border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.18);box-shadow:0 14px 34px rgba(0,0,0,.35)}
+.fm .vitems{display:grid;gap:10px;min-width:0}
+.fm .vitems>*{min-width:0;border-radius:20px;transition:transform .2s,box-shadow .2s}
+.fm .vitems>*:hover{transform:translateY(-2px)}
+.fm .vdetail{border-radius:24px;padding:16px;min-width:0;word-break:break-word}
+.fm .vdetail img{max-width:100%;height:auto;border-radius:14px}
