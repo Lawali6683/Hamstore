@@ -7,40 +7,69 @@
 <title>Hamstore Admin - Branches</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
 <link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="adminbranch.css">
 </head>
 <body>
-<main class="wrap split">
-  <section class="panel formcard">
-    <h2 id="formTitle">New branch</h2>
-    <p class="sub" id="formSub">Branches show on the website and on its map.</p>
-    <form id="form" novalidate>
-      <div class="field"><i class="fa-solid fa-store lead"></i><input id="fName" type="text" maxlength="80" placeholder="Branch name"></div>
-      <div class="field"><i class="fa-solid fa-phone lead"></i><input id="fPhone" type="tel" placeholder="Branch phone number" autocomplete="off"></div>
-      <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="fPhone2" type="tel" placeholder="Second phone number (optional)" autocomplete="off"></div>
-      <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="fPhone3" type="tel" placeholder="Third phone number (optional)" autocomplete="off"></div>
-      <span class="lab">Opening and closing time (optional)</span>
-      <div style="display:flex;gap:10px;margin-bottom:14px"><div class="field" style="flex:1;margin:0"><i class="fa-solid fa-sun lead"></i><input id="fOpens" type="time"></div><div class="field" style="flex:1;margin:0"><i class="fa-solid fa-moon lead"></i><input id="fCloses" type="time"></div></div>
-      <div class="field"><i class="fa-solid fa-globe lead"></i><input id="fLink" type="url" placeholder="Branch link (optional)"></div>
-      <div id="imgField"></div>
-      <div class="field"><i class="fa-solid fa-location-dot lead"></i><input id="fAddr" type="text" maxlength="200" placeholder="Full address, town and state"></div>
-      <button class="ghost full" type="button" id="find" style="width:100%;margin-bottom:12px"><i class="fa-solid fa-magnifying-glass-location"></i>Find on map</button>
-      <div class="map" id="map"></div>
-      <p class="sub" id="pin">Tap the map or drag the pin to set the exact spot.</p>
-      <span class="lab">This branch sells (optional)</span>
-      <div class="chips" id="chips"><button type="button" class="chip" data-k="water"><i class="fa-solid fa-droplet"></i> Water</button><button type="button" class="chip" data-k="drinks"><i class="fa-solid fa-bottle-water"></i> Drinks</button></div>
-      <div class="acts">
-        <button class="btn full" type="submit" id="submitBtn"><i class="fa-solid fa-paper-plane"></i><span>Add branch</span></button>
-        <button class="ghost" type="button" id="cancelEdit" hidden>Cancel editing</button>
-      </div>
-    </form>
-  </section>
+<main class="wrap br">
+  <div class="br-top">
+    <h2><span class="livedot"></span>Branches</h2>
+    <span class="br-count" id="count">0</span>
+  </div>
 
-  <section>
-    <div class="listhead"><h2>All branches</h2><span class="count" id="count">0</span></div>
-    <div class="grid" id="grid"></div>
-    <div class="empty" id="empty" hidden><i class="fa-solid fa-store" style="font-size:28px"></i><p>No branches yet. Add your first one.</p></div>
-    <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
-  </section>
+  <div class="br-split">
+    <section class="br-form" id="formCard">
+      <div class="br-fh">
+        <h3 id="formTitle">New branch</h3>
+        <p id="formSub">Branches show on the website and on its map.</p>
+      </div>
+      <form id="form" novalidate autocomplete="off">
+        <div class="br-sec"><i class="fa-solid fa-store"></i>Branch</div>
+        <div class="field"><i class="fa-solid fa-store lead"></i><input id="fName" type="text" maxlength="80" placeholder="Branch name"></div>
+        <div class="field"><i class="fa-solid fa-globe lead"></i><input id="fLink" type="url" placeholder="Branch link (optional)"></div>
+
+        <div class="br-sec"><i class="fa-solid fa-phone"></i>Phone numbers</div>
+        <div class="field"><i class="fa-solid fa-phone lead"></i><input id="fPhone" type="tel" placeholder="Branch phone number"></div>
+        <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="fPhone2" type="tel" placeholder="Second phone number (optional)"></div>
+        <div class="field"><i class="fa-solid fa-phone-volume lead"></i><input id="fPhone3" type="tel" placeholder="Third phone number (optional)"></div>
+
+        <div class="br-sec"><i class="fa-regular fa-clock"></i>Opening and closing time (optional)</div>
+        <div class="br-two">
+          <div class="field"><i class="fa-solid fa-sun lead"></i><input id="fOpens" type="time"></div>
+          <div class="field"><i class="fa-solid fa-moon lead"></i><input id="fCloses" type="time"></div>
+        </div>
+
+        <div class="br-sec"><i class="fa-solid fa-image"></i>Photo</div>
+        <div id="imgField"></div>
+
+        <div class="br-sec"><i class="fa-solid fa-location-dot"></i>Location</div>
+        <div class="field"><i class="fa-solid fa-location-dot lead"></i><input id="fAddr" type="text" maxlength="200" placeholder="Full address, town and state"></div>
+        <div class="br-two">
+          <button class="ghost" type="button" id="find"><i class="fa-solid fa-magnifying-glass-location"></i>Find on map</button>
+          <button class="ghost" type="button" id="locate"><i class="fa-solid fa-location-crosshairs"></i>I am here</button>
+        </div>
+        <div class="br-map" id="map"></div>
+        <p class="br-pin" id="pin">Tap the map or drag the pin to set the exact spot.</p>
+
+        <div class="br-sec"><i class="fa-solid fa-droplet"></i>This branch sells (optional)</div>
+        <div class="chips" id="chips">
+          <button type="button" class="chip" data-k="water"><i class="fa-solid fa-droplet"></i> Water</button>
+          <button type="button" class="chip" data-k="drinks"><i class="fa-solid fa-bottle-water"></i> Drinks</button>
+        </div>
+
+        <div class="br-acts">
+          <button class="btn" type="submit" id="submitBtn"><i class="fa-solid fa-paper-plane"></i><span>Add branch</span></button>
+          <button class="ghost" type="button" id="cancelEdit" hidden>Cancel editing</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="br-list">
+      <label class="br-search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" type="search" autocomplete="off" placeholder="Search name, address, phone or code"></label>
+      <div class="br-grid" id="grid"></div>
+      <div class="empty" id="empty" hidden><i class="fa-solid fa-store" style="font-size:28px"></i><p>No branches yet. Add your first one.</p></div>
+      <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
+    </section>
+  </div>
 </main>
 
 <script type="module" src="allui.js"></script>
