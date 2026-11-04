@@ -10,7 +10,7 @@ const T = {
     allow: "Allow location access to see the route from where you are.", cust: "Customer", shop: "Shop", call: "Call",
     road: "By road", line: "Straight line", left: "Turn left", right: "Turn right", sl: "Bear left", sr: "Bear right",
     shl: "Sharp left", shr: "Sharp right", straight: "Continue straight", uturn: "Make a U-turn", start: "Start driving",
-    arrived: "You have arrived", round: "Enter the roundabout", onto: " onto ", on: " on ", away: "away"
+    arrived: "You have arrived", round: "Enter the roundabout", onto: " onto ", on: " on ", away: "away", full: "Full screen", call2: "Call"
   },
   ha: {
     close: "Rufe taswira", finding: "Ana neman hanya...", you: "Kana nan", dist: "Nisa", time: "Lokaci", arrive: "Isowa",
@@ -18,7 +18,7 @@ const T = {
     allow: "Ka ba da izinin location don ganin hanya daga inda kake.", cust: "Kwastoma", shop: "Shago", call: "Kira",
     road: "Ta hanya", line: "Layi kai tsaye", left: "Ka juya hagu", right: "Ka juya dama", sl: "Ka karkata hagu kaɗan", sr: "Ka karkata dama kaɗan",
     shl: "Ka juya hagu sosai", shr: "Ka juya dama sosai", straight: "Ka ci gaba da tafiya", uturn: "Ka juya baya", start: "Ka fara tafiya",
-    arrived: "Ka isa wurin", round: "Shiga zagaye", onto: " a ", on: " a ", away: "daga nan"
+    arrived: "Ka isa wurin", round: "Shiga zagaye", onto: " a ", on: " a ", away: "daga nan", full: "Cikakken allo", call2: "Kira"
   }
 };
 
@@ -120,18 +120,20 @@ export async function openRouteMap(opts = {}) {
   ensureCss();
   const lang = (opts.lang || document.documentElement.getAttribute("data-lang") || "en") === "ha" ? "ha" : "en";
   const s = T[lang];
+  const inline = !!opts.mount;
+  const topFixed = !!opts.top;
 
   const custCard = c => `<div class="hsm-card"><i class="fa-solid fa-house-user"></i><div><span class="lbl">${s.cust}</span><h4>${esc(c.name)}</h4>${c.address ? `<p>${esc(c.address)}</p>` : ""}${c.phone ? `<div class="hsm-calls"><a class="hsm-b sm call" href="${tel(c.phone)}"><i class="fa-solid fa-phone"></i>${s.call}</a><a class="hsm-b sm wa" href="https://wa.me/${waNum(c.phone)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp</a></div>` : ""}</div></div>`;
   const shopPhones = c => (Array.isArray(c.phones) ? c.phones : [c.phone]).filter(Boolean);
   const shopCard = c => `<div class="hsm-card">${safeUrl(c.image) ? `<img src="${esc(c.image)}" alt="">` : '<i class="fa-solid fa-store"></i>'}<div><span class="lbl">${s.shop}</span><h4>${esc(c.name)}</h4>${c.address ? `<p>${esc(c.address)}</p>` : ""}<div class="hsm-calls">${shopPhones(c).map(p => `<a class="hsm-b sm call" href="${tel(p)}"><i class="fa-solid fa-phone"></i>${esc(p)}</a>`).join("")}</div></div></div>`;
 
   const root = document.createElement("div");
-  root.className = "hsm";
+  root.className = inline ? "hsm hsm-inline" : "hsm";
   root.setAttribute("role", "dialog");
   root.setAttribute("aria-modal", "true");
   root.innerHTML = `<div class="hsm-map"></div>
-    <button class="hsm-x" type="button" aria-label="${s.close}"><i class="fa-solid fa-xmark"></i></button>
-    <div class="hsm-top"></div>
+    ${inline ? "" : `<button class="hsm-x" type="button" aria-label="${s.close}"><i class="fa-solid fa-xmark"></i></button>`}
+    <div class="hsm-top${topFixed ? " fixed" : ""}">${topFixed ? `<i class="fa-solid fa-user"></i><b>${esc(opts.top.name || "")}</b>${opts.top.phone ? `<a class="hsm-tel" href="${tel(opts.top.phone)}"><i class="fa-solid fa-phone"></i>${esc(opts.top.phone)}</a>` : ""}` : ""}</div>
     <div class="hsm-wrap">
       <div class="hsm-ctl"><button class="hsm-mb" type="button" data-a="fit" aria-label="${s.fit}"><i class="fa-solid fa-location-crosshairs"></i></button></div>
       <div class="hsm-sheet">
@@ -140,13 +142,16 @@ export async function openRouteMap(opts = {}) {
         <div class="hsm-tabs"></div>
         <div class="hsm-eta"><div><small>${s.dist}</small><b data-e="km">-</b></div><div><small>${s.time}</small><b data-e="min">-</b></div><div><small>${s.arrive}</small><b data-e="arr">-</b></div></div>
         <div class="hsm-cards">${cust ? custCard(cust) : ""}${shop ? shopCard(shop) : ""}</div>
-        <div class="hsm-btns"><a class="hsm-b gm" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i>${s.gm}</a></div>
+        <div class="hsm-btns"><a class="hsm-b gm" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i>${s.gm}</a>${inline ? `<button class="hsm-b full" type="button" data-a="full"><i class="fa-solid fa-expand"></i>${s.full}</button>` : ""}</div>
         <h5>${s.dir}</h5>
         <ol class="hsm-steps"></ol>
       </div>
     </div>`;
-  document.body.appendChild(root);
-  document.body.classList.add("hsm-lock");
+  if (inline) opts.mount.replaceChildren(root);
+  else {
+    document.body.appendChild(root);
+    document.body.classList.add("hsm-lock");
+  }
 
   const q = sel => root.querySelector(sel);
   const top = q(".hsm-top");
@@ -154,6 +159,7 @@ export async function openRouteMap(opts = {}) {
   const tabsEl = q(".hsm-tabs");
   const stepsEl = q(".hsm-steps");
   const gm = q(".gm");
+  const say = text => { if (!topFixed) top.textContent = text; };
   const setEta = (a, b, c) => { q('[data-e="km"]').textContent = a; q('[data-e="min"]').textContent = b; q('[data-e="arr"]').textContent = c; };
 
   let closed = false;
@@ -177,21 +183,24 @@ export async function openRouteMap(opts = {}) {
     window.removeEventListener("popstate", onPop);
     document.removeEventListener("keydown", onKey);
     window.removeEventListener("resize", onSize);
+    window.removeEventListener("orientationchange", onSize);
     if (map) map.remove();
     root.remove();
-    document.body.classList.remove("hsm-lock");
+    if (!inline) document.body.classList.remove("hsm-lock");
     if (pushed && history.state && history.state.hsm) history.back();
   };
   const onPop = () => { pushed = false; close(); };
   const onKey = e => { if (e.key === "Escape") close(); };
   const onSize = () => { if (map) setTimeout(() => map.invalidateSize(), 200); };
-  window.addEventListener("popstate", onPop);
-  document.addEventListener("keydown", onKey);
   window.addEventListener("resize", onSize);
   window.addEventListener("orientationchange", onSize);
-  try { history.pushState({ hsm: 1 }, ""); pushed = true; } catch (e) {}
-  try { screen.orientation.unlock(); } catch (e) {}
-  q(".hsm-x").onclick = close;
+  if (!inline) {
+    window.addEventListener("popstate", onPop);
+    document.addEventListener("keydown", onKey);
+    try { history.pushState({ hsm: 1 }, ""); pushed = true; } catch (e) {}
+    try { screen.orientation.unlock(); } catch (e) {}
+    q(".hsm-x").onclick = close;
+  }
   q(".hsm-grab").onclick = () => sheet.classList.toggle("open");
 
   let L;
@@ -208,7 +217,7 @@ export async function openRouteMap(opts = {}) {
   if (shop) pts.shop = { lat: Number(shop.lat), lng: Number(shop.lng) };
   if (lastMe) pts.me = { ...lastMe };
 
-  map = L.map(q(".hsm-map"), { zoomControl: false, tap: true, zoomSnap: 0.5 });
+  map = L.map(q(".hsm-map"), { zoomControl: false, tap: true, zoomSnap: 0.5, dragging: !(inline && L.Browser.mobile), scrollWheelZoom: !inline });
   L.control.zoom({ position: "topleft" }).addTo(map);
   L.tileLayer(TILE, { subdomains: "abcd", maxZoom: 20, attribution: ATTR }).addTo(map);
   const first = pts.cust || pts.shop;
@@ -240,6 +249,7 @@ export async function openRouteMap(opts = {}) {
   };
 
   const fitPad = () => {
+    if (inline) return { paddingTopLeft: [30, 70], paddingBottomRight: [30, 40], maxZoom: 17 };
     const side = matchMedia("(orientation:landscape) and (max-height:560px)").matches;
     return side
       ? { paddingTopLeft: [60, 70], paddingBottomRight: [Math.min(400, innerWidth * 0.46) + 30, 30] }
@@ -253,7 +263,7 @@ export async function openRouteMap(opts = {}) {
     const cur = d.find(x => x[0] === sel) || d[0];
     const dest = pts.cust || pts.shop;
     if (!cur) {
-      top.textContent = s.allow;
+      say(s.allow);
       setEta("-", "-", "-");
       stepsEl.innerHTML = "";
       tabsEl.hidden = true;
@@ -266,14 +276,14 @@ export async function openRouteMap(opts = {}) {
     sel = cur[0];
     lastDraw = Date.now();
     paintTabs();
-    top.textContent = s.finding;
+    say(s.finding);
     const a = cur[2];
     const b = cur[3];
     gm.href = `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lng}&destination=${b.lat},${b.lng}&travelmode=driving`;
     const tok = ++drawTok;
     const r = await osrm(a, b);
     if (closed || tok !== drawTok) return;
-    top.textContent = `${fmtKm(r.km)} · ${fmtMin(r.min)} · ${r.est ? s.line : s.road}`;
+    say(`${fmtKm(r.km)} · ${fmtMin(r.min)} · ${r.est ? s.line : s.road}`);
     setEta(fmtKm(r.km), fmtMin(r.min), arriveAt(r.min));
     stepsEl.innerHTML = r.steps.map(x => `<li><i class="fa-solid ${stepIcon(x)}"></i><span>${esc(stepText(x, s))}</span><em>${x.m.type === "arrive" ? "" : fmtDist(x.d)}</em></li>`).join("");
     clearInterval(anim);
@@ -319,6 +329,8 @@ export async function openRouteMap(opts = {}) {
     draw();
   });
   q('[data-a="fit"]').onclick = () => fitFn();
+  const fullBtn = q('[data-a="full"]');
+  if (fullBtn) fullBtn.onclick = () => openRouteMap({ ...opts, mount: null });
 
   setMe();
   draw();
@@ -338,5 +350,4 @@ export async function openRouteMap(opts = {}) {
   }
 
   return close;
-    }
-  
+}
