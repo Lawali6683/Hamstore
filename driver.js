@@ -4,52 +4,66 @@ import { openRouteMap } from "./hsmap.js";
 
 const $ = id => document.getElementById(id);
 const JSQR = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
-const KEY = "hs_dc";
+const KEY = "hs_drv_key";
+const PING_MS = 8000;
+const LIST_MS = 15000;
 
 const X = {
   en: {
-    open: "Opening delivery...", needD: "Enter the office code first. The customer code is kept for the next step.", invalid: "Enter the full code.",
-    notfound: "This code does not exist. Check it and try again.", cancelled: "The office cancelled this code. Ask for a new one.",
-    wait: "Too many wrong attempts. Wait 10 minutes.", net: "Network problem. Check your internet and try again.",
-    doneAlready: "This delivery is already completed.", deliverTo: "Deliver to", call: "Call", wa: "WhatsApp", gmaps: "Open in Google Maps",
-    copy: "Copy address", copied: "Address copied", noPos: "The customer did not share a map location. Use the address or call him.",
-    searchMap: "Search the address in Google Maps", camDenied: "Camera is blocked. Allow camera access or type the code.", camNone: "No camera found on this device.",
+    bad: "This code is not valid.", blocked: "This driver account is blocked. Call the office.",
+    net: "Network problem. Check your internet and try again.", wait: "Too many attempts. Wait 10 minutes.",
+    hello: "Hello", none: "No orders for you right now.", noneSub: "New orders from the office appear here automatically.",
+    assigned: "Assigned to you", open: "Open route", call: "Call", wa: "WhatsApp", back: "Back to my orders",
+    gps: "Location is on", gpsOff: "Turn on location to share where you are.", gpsDenied: "Location is blocked. Allow it in your phone settings.",
+    todayDone: "Delivered today", noPos: "The customer did not share a map location. Use the address or call him.",
+    scan: "Scan QR", type: "Type code", camStart: "Tap to turn on the camera", camStop: "Turn off camera", fromPhoto: "From a photo",
+    camDenied: "Camera is blocked. Allow camera access or type the code.", camNone: "No camera found on this device.",
     scanning: "Point the camera at the QR code.", found: "Code found. Checking...", noQr: "No QR code found in that photo.", checking: "Checking the code...",
-    mismatch: "This code does not belong to this delivery. Check the slip.", used: "This order was already delivered.", paid: "Payment confirmed. Check the goods below.",
-    items: "Goods to hand over", total: "Total paid", proof: "Payment proof", confirm: "Goods handed over - confirm delivery", cTitle: "Confirm delivery",
-    cText: "Press confirm only after the customer has received all the goods.", dName: "Your name", dNote: "Note (optional)", cancel: "Cancel", yes: "Confirm",
-    far: "You are {km} from the delivery point. Confirm anyway?", nameReq: "Enter your name.", done: "Delivery confirmed",
-    doneP: "The customer's address, phone and payment proof were removed. These codes cannot open the order again.", another: "Start another delivery",
-    carton: "Carton", ordered: "Ordered"
+    inv: "Enter the full code.", mismatch: "This code does not belong to this order. Check the slip.", used: "This order was already delivered.",
+    paid: "Payment confirmed. Hand over the goods below.", items: "Goods to hand over", total: "Total paid", proof: "Payment proof",
+    confirm: "Goods handed over - confirm delivery", cTitle: "Confirm delivery", cText: "Press confirm only after the customer has received all the goods.",
+    dNote: "Note (optional)", cancel: "Cancel", yes: "Confirm", far: "You are {km} from the delivery point. Confirm anyway?",
+    done: "Delivery confirmed", doneP: "Delivery is saved. The office can review this order from its history.",
+    carton: "Carton", logout: "Sign out", offline: "You are offline. Showing your last orders.", slip: "Customer's slip", slipSub: "Scan the QR code on the slip, or type the code the customer shows you.",
+    confirmHere: "I am at the customer - scan slip", sign: "Sign in", keyLbl: "Your driver code", keyPh: "DV-XXXXXXXX"
   },
   ha: {
-    open: "Ana buɗe isarwa...", needD: "Ka shigar da lambar ofis tukuna. Ana adana lambar kwastoma don mataki na gaba.", invalid: "Ka shigar da cikakkiyar lamba.",
-    notfound: "Wannan lambar babu ita. Ka duba ka sake gwadawa.", cancelled: "Ofis ya soke wannan lambar. Ka nemi sabuwa.",
-    wait: "Ka yi kuskure sau da yawa. Ka jira minti 10.", net: "Matsalar intanet. Ka duba ka sake gwadawa.",
-    doneAlready: "An riga an kammala wannan isarwa.", deliverTo: "Kai wa", call: "Kira", wa: "WhatsApp", gmaps: "Buɗe a Google Maps",
-    copy: "Kwafi adireshi", copied: "An kwafi adireshi", noPos: "Kwastoma bai tura wurin taswira ba. Ka yi amfani da adireshi ko ka kira shi.",
-    searchMap: "Nemo adireshin a Google Maps", camDenied: "An hana kyamara. Ka ba da izini ko ka rubuta lambar.", camNone: "Ba a sami kyamara a na'urar nan ba.",
-    scanning: "Ka nuna kyamara ga QR code.", found: "An samo lamba. Ana dubawa...", noQr: "Ba a sami QR code a hoton ba.", checking: "Ana duba lambar...",
-    mismatch: "Wannan lambar ba ta wannan isarwa ba ce. Ka duba slip ɗin.", used: "An riga an kai wannan odar.", paid: "An tabbatar da biya. Ka duba kayan da ke ƙasa.",
-    items: "Kayan da za a ba shi", total: "Jimlar da aka biya", proof: "Shaidar biya", confirm: "An ba da kayan - tabbatar da isarwa", cTitle: "Tabbatar da isarwa",
-    cText: "Ka danna tabbatarwa ne kawai bayan kwastoma ya karɓi duk kayan.", dName: "Sunanka", dNote: "Bayani (zaɓi)", cancel: "Soke", yes: "Tabbatar",
-    far: "Kana {km} daga wurin isarwa. Za ka tabbatar ko da haka?", nameReq: "Ka rubuta sunanka.", done: "An tabbatar da isarwa",
-    doneP: "An share adireshin kwastoma, wayarsa da shaidar biyansa. Waɗannan lambobin ba za su sake buɗe odar ba.", another: "Fara wata isarwa",
-    carton: "Kwali", ordered: "An yi oda"
+    bad: "Wannan lambar ba ta dace ba.", blocked: "An kulle wannan asusun direba. Ka kira ofis.",
+    net: "Matsalar intanet. Ka duba ka sake gwadawa.", wait: "Ka yi ƙoƙari sau da yawa. Ka jira minti 10.",
+    hello: "Sannu", none: "Babu oda a gare ka yanzu.", noneSub: "Sabbin oda daga ofis suna bayyana a nan ta atomatik.",
+    assigned: "An ba ka", open: "Buɗe hanya", call: "Kira", wa: "WhatsApp", back: "Koma ga odata",
+    gps: "Location yana kunne", gpsOff: "Kunna location don a raba inda kake.", gpsDenied: "An hana location. Ba da izini a saitunan waya.",
+    todayDone: "An kai yau", noPos: "Kwastoma bai tura wurin taswira ba. Ka yi amfani da adireshi ko ka kira shi.",
+    scan: "Duba QR", type: "Rubuta lamba", camStart: "Danna don kunna kyamara", camStop: "Kashe kyamara", fromPhoto: "Daga hoto",
+    camDenied: "An hana kyamara. Ba da izini ko rubuta lambar.", camNone: "Ba a sami kyamara a wannan na'ura ba.",
+    scanning: "Nuna kyamara ga QR code.", found: "An samo lamba. Ana dubawa...", noQr: "Ba a sami QR code a hoton ba.", checking: "Ana duba lambar...",
+    inv: "Ka rubuta cikakkiyar lamba.", mismatch: "Wannan lambar ba ta wannan odar ba ce. Duba slip.", used: "An riga an kai wannan odar.",
+    paid: "An tabbatar da biya. Ba da kayan da ke ƙasa.", items: "Kayan da za a ba shi", total: "Jimlar da aka biya", proof: "Shaidar biya",
+    confirm: "An ba da kayan - tabbatar da isarwa", cTitle: "Tabbatar da isarwa", cText: "Ka danna tabbatarwa ne kawai bayan kwastoma ya karɓi duk kayan.",
+    dNote: "Bayani (zaɓi)", cancel: "Soke", yes: "Tabbatar", far: "Kana {km} daga wurin isarwa. Za ka tabbatar ko da haka?",
+    done: "An tabbatar da isarwa", doneP: "An adana isarwar. Ofis zai iya duba wannan odar daga tarihi.",
+    carton: "Kwali", logout: "Fita", offline: "Babu intanet. Ana nuna odan ƙarshe.", slip: "Slip ɗin kwastoma", slipSub: "Duba QR da ke slip ko rubuta lambar da kwastoma ya nuna maka.",
+    confirmHere: "Na isa wurin kwastoma - duba slip", sign: "Shiga", keyLbl: "Lambar direba", keyPh: "DV-XXXXXXXX"
   }
 };
 const x = k => (X[getLang()] || X.en)[k] ?? k;
 
-let dispatch = null;
+let key = "";
+let me = null;
+let orders = [];
+let active = null;
 let verified = null;
-let closeMap = null;
-let pendingCustomer = "";
 let stream = null;
 let live = false;
-let timer = 0;
+let scanTimer = 0;
 let detector = null;
 let jsqrP = null;
 let busy = false;
+let watchId = null;
+let lastFix = null;
+let pingTimer = 0;
+let listTimer = 0;
+let closeMap = null;
 
 const telLink = p => "tel:" + String(p || "").replace(/[^\d+]/g, "");
 const waNum = p => {
@@ -59,7 +73,7 @@ const waNum = p => {
   return d;
 };
 const safeUrl = u => (/^https?:\/\//i.test(String(u || "")) ? String(u) : "");
-const hasPos = d => d && typeof d.lat === "number" && typeof d.lng === "number";
+const hasPos = o => !!o && typeof o.lat === "number" && typeof o.lng === "number";
 const hav = (a, b) => {
   const rad = v => (v * Math.PI) / 180;
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
@@ -72,16 +86,8 @@ function setMsg(id, text, kind) {
   el.className = "dmsg" + (kind ? " " + kind : "");
 }
 
-function setStep(n) {
-  [...$("dflow").children].forEach((li, i) => li.classList.toggle("on", i < n));
-}
-
 function show(id, on) {
   $(id).hidden = !on;
-}
-
-function errText(code) {
-  return code === "wait" ? x("wait") : code === "invalid" ? x("invalid") : code === "cancelled" ? x("cancelled") : code === "mismatch" ? x("mismatch") : code === "used" ? x("used") : x("notfound");
 }
 
 function loadJsQr() {
@@ -105,16 +111,6 @@ function extractCode(text) {
     if (c) return c.trim();
   } catch (e) {}
   return s;
-}
-
-function stopScan() {
-  live = false;
-  clearTimeout(timer);
-  if (stream) stream.getTracks().forEach(z => z.stop());
-  stream = null;
-  $("vid").srcObject = null;
-  $("vwrap").classList.remove("live");
-  $("scanStop").hidden = true;
 }
 
 async function setupDetector() {
@@ -141,7 +137,17 @@ async function decodeSource(src, w, h) {
   return r ? r.data : "";
 }
 
-async function loop() {
+function stopScan() {
+  live = false;
+  clearTimeout(scanTimer);
+  if (stream) stream.getTracks().forEach(z => z.stop());
+  stream = null;
+  $("vid").srcObject = null;
+  $("vwrap").classList.remove("live");
+  show("scanStop", false);
+}
+
+async function scanLoop() {
   if (!live) return;
   const v = $("vid");
   if (v.readyState >= 2 && v.videoWidth) {
@@ -150,22 +156,22 @@ async function loop() {
     if (raw && live) {
       stopScan();
       if (navigator.vibrate) navigator.vibrate(80);
-      setMsg("vMsg", x("found"), "good");
-      verifyCode(extractCode(raw));
+      setMsg("scanMsg", x("found"), "good");
+      verifyCustomer(extractCode(raw));
       return;
     }
   }
-  timer = setTimeout(loop, 160);
+  scanTimer = setTimeout(scanLoop, 160);
 }
 
 async function startScan() {
   stopScan();
-  setMsg("vMsg", "");
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return setMsg("vMsg", x("camNone"), "bad");
+  setMsg("scanMsg", "");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return setMsg("scanMsg", x("camNone"), "bad");
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }, audio: false });
   } catch (e) {
-    return setMsg("vMsg", e && e.name === "NotFoundError" ? x("camNone") : x("camDenied"), "bad");
+    return setMsg("scanMsg", e && e.name === "NotFoundError" ? x("camNone") : x("camDenied"), "bad");
   }
   await setupDetector();
   if (!detector) loadJsQr();
@@ -173,14 +179,14 @@ async function startScan() {
   v.srcObject = stream;
   try { await v.play(); } catch (e) {}
   $("vwrap").classList.add("live");
-  $("scanStop").hidden = false;
-  setMsg("vMsg", x("scanning"), "good");
+  show("scanStop", true);
+  setMsg("scanMsg", x("scanning"), "good");
   live = true;
-  loop();
+  scanLoop();
 }
 
 $("scanStart").onclick = startScan;
-$("scanStop").onclick = () => { stopScan(); setMsg("vMsg", ""); };
+$("scanStop").onclick = () => { stopScan(); setMsg("scanMsg", ""); };
 
 $("scanFile").addEventListener("change", async e => {
   const f = e.target.files[0];
@@ -191,10 +197,10 @@ $("scanFile").addEventListener("change", async e => {
     const bmp = await createImageBitmap(f);
     const scale = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
     const raw = await decodeSource(bmp, Math.round(bmp.width * scale), Math.round(bmp.height * scale));
-    if (raw) verifyCode(extractCode(raw));
-    else setMsg("vMsg", x("noQr"), "bad");
+    if (raw) verifyCustomer(extractCode(raw));
+    else setMsg("scanMsg", x("noQr"), "bad");
   } catch (err) {
-    setMsg("vMsg", x("noQr"), "bad");
+    setMsg("scanMsg", x("noQr"), "bad");
   }
 });
 
@@ -203,54 +209,174 @@ function setTab(scan) {
   $("tabType").classList.toggle("on", !scan);
   show("scanBox", scan);
   show("typeBox", !scan);
-  if (!scan) {
-    stopScan();
-    setTimeout(() => $("codeIn").focus(), 60);
-  }
+  if (!scan) stopScan();
 }
 $("tabScan").onclick = () => setTab(true);
 $("tabType").onclick = () => setTab(false);
-
-$("dcIn").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""); });
 $("codeIn").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9/\-\s]/g, ""); });
+$("typeBox").addEventListener("submit", e => {
+  e.preventDefault();
+  verifyCustomer($("codeIn").value);
+});
 
-function copyText(text, msg) {
-  navigator.clipboard.writeText(text).then(() => toast("ok", msg), () => {});
+function startGps() {
+  if (!navigator.geolocation || watchId !== null) return;
+  watchId = navigator.geolocation.watchPosition(p => {
+    lastFix = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, speed: p.coords.speed, heading: p.coords.heading };
+    setMsg("gpsMsg", x("gps"), "good");
+    show("gpsBar", true);
+  }, err => {
+    setMsg("gpsMsg", err && err.code === 1 ? x("gpsDenied") : x("gpsOff"), "bad");
+    show("gpsBar", true);
+  }, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 });
 }
 
-function renderInfo() {
-  const d = dispatch;
-  if (!d) return;
-  const pos = hasPos(d);
-  const gq = pos ? `${d.lat},${d.lng}` : encodeURIComponent(d.address || "");
-  const gUrl = pos ? `https://www.google.com/maps/dir/?api=1&destination=${gq}&travelmode=driving` : `https://www.google.com/maps/search/?api=1&query=${gq}`;
-  $("dInfo").innerHTML = `<div class="dcard">
-    <div class="dwho"><i class="fa-solid fa-house-user"></i><div><small>${esc(x("deliverTo"))}</small><h2>${esc(d.name || "")}</h2></div></div>
-    ${d.phone ? `<a class="dtel" href="${telLink(d.phone)}"><i class="fa-solid fa-phone"></i><b>${esc(d.phone)}</b><span>${esc(x("call"))}</span></a>` : ""}
-    <p class="dadr"><i class="fa-solid fa-location-dot"></i><span>${esc(d.address || "")}</span>${d.address ? `<button type="button" data-a="copy" aria-label="${esc(x("copy"))}"><i class="fa-regular fa-copy"></i></button>` : ""}</p>
-    <div class="dbtns">
-      <a class="bt blue" target="_blank" rel="noopener" href="${gUrl}"><i class="fa-solid fa-diamond-turn-right"></i>${esc(pos ? x("gmaps") : x("searchMap"))}</a>
-      ${d.phone ? `<a class="bt wa" target="_blank" rel="noopener" href="https://wa.me/${waNum(d.phone)}"><i class="fa-brands fa-whatsapp"></i>${esc(x("wa"))}</a>` : ""}
+async function pingOnce() {
+  if (!key || !lastFix) return;
+  try {
+    await supabase.rpc("driver_ping", { p_key: key, p_lat: lastFix.lat, p_lng: lastFix.lng, p_acc: lastFix.acc ?? null, p_speed: lastFix.speed ?? null, p_heading: lastFix.heading ?? null });
+  } catch (e) {}
+}
+
+async function setOnline(on) {
+  if (!key) return;
+  try { await supabase.rpc("driver_set_online", { p_key: key, p_online: on }); } catch (e) {}
+}
+
+function startPing() {
+  clearInterval(pingTimer);
+  pingTimer = setInterval(pingOnce, PING_MS);
+  pingOnce();
+  setOnline(true);
+}
+
+function stopPing() {
+  clearInterval(pingTimer);
+  setOnline(false);
+}
+
+function orderCard(o) {
+  const pos = hasPos(o);
+  const km = pos && lastFix ? hav(lastFix, o) : null;
+  const items = Array.isArray(o.items) ? o.items : [];
+  const itemText = items.map(i => `${esc(i.name)} × ${esc(i.qty)}`).join(", ");
+  return `<article class="dd-card" data-d="${esc(o.dcode)}">
+    <div class="dd-top"><span class="dd-tag"><i class="fa-solid fa-truck-fast"></i>${esc(x("assigned"))}</span>${km != null ? `<span class="dd-km">${km < 10 ? km.toFixed(1) : Math.round(km)} km</span>` : ""}</div>
+    <h3>${esc(o.name || "")}</h3>
+    <p class="dd-adr"><i class="fa-solid fa-location-dot"></i><span>${esc(o.address || "")}</span></p>
+    <p class="dd-items">${itemText}</p>
+    <div class="dd-btns">
+      <button class="bt blue" type="button" data-a="open"><i class="fa-solid fa-route"></i>${esc(x("open"))}</button>
+      ${o.phone ? `<a class="bt" href="${telLink(o.phone)}"><i class="fa-solid fa-phone"></i>${esc(x("call"))}</a>` : ""}
     </div>
-  </div>`;
+  </article>`;
 }
 
-function mountMap() {
-  const d = dispatch;
-  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
-  const m = $("mapMount");
-  if (!d) { m.innerHTML = ""; return; }
-  if (!hasPos(d)) {
-    m.innerHTML = `<div class="mapnote"><span>${esc(x("noPos"))}</span></div>`;
-    return;
+function renderOrders() {
+  $("hello").textContent = `${x("hello")}, ${me ? me.name : ""}`;
+  $("orders").innerHTML = orders.length
+    ? orders.map(orderCard).join("")
+    : `<div class="dd-none"><i class="fa-solid fa-mug-hot"></i><b>${esc(x("none"))}</b><span>${esc(x("noneSub"))}</span></div>`;
+  $("todayDone").textContent = me && me.done_today != null ? me.done_today : 0;
+  $("todayLbl").textContent = x("todayDone");
+}
+
+async function loadOrders() {
+  if (!key) return;
+  try {
+    const { data, error } = await supabase.rpc("driver_orders", { p_key: key });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      if (data && (data.code === "blocked" || data.code === "notfound")) return signOut(data.code === "blocked" ? x("blocked") : x("bad"));
+      return;
+    }
+    me = { name: data.name, done_today: data.done_today };
+    orders = Array.isArray(data.orders) ? data.orders : [];
+    setMsg("ordMsg", "");
+    renderOrders();
+  } catch (e) {
+    setMsg("ordMsg", x("offline"), "bad");
   }
-  m.innerHTML = "";
-  openRouteMap({
-    mount: m,
-    lang: getLang(),
-    cust: { lat: d.lat, lng: d.lng, name: d.name, address: d.address, phone: d.phone },
-    top: { name: d.name, phone: d.phone }
-  }).then(c => { closeMap = c; });
+}
+
+function openRoute(o) {
+  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
+  active = o;
+  show("sList", false);
+  show("sRoute", true);
+  $("routeTitle").textContent = o.name || "";
+  $("routeAddr").textContent = o.address || "";
+  show("routeCall", !!o.phone);
+  $("routeCall").href = o.phone ? telLink(o.phone) : "#";
+  show("routeWa", !!o.phone);
+  $("routeWa").href = o.phone ? `https://wa.me/${waNum(o.phone)}` : "#";
+  const gq = hasPos(o) ? `${o.lat},${o.lng}` : encodeURIComponent(o.address || "");
+  $("routeGm").href = hasPos(o)
+    ? `https://www.google.com/maps/dir/?api=1&destination=${gq}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${gq}`;
+  const mount = $("routeMap");
+  mount.innerHTML = "";
+  if (hasPos(o)) {
+    openRouteMap({
+      mount,
+      lang: getLang(),
+      cust: { lat: o.lat, lng: o.lng, name: o.name, address: o.address, phone: o.phone },
+      top: { name: o.name, phone: o.phone }
+    }).then(c => { closeMap = c; });
+  } else {
+    mount.innerHTML = `<div class="dd-note">${esc(x("noPos"))}</div>`;
+  }
+  scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function closeRoute() {
+  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
+  $("routeMap").innerHTML = "";
+  active = null;
+  verified = null;
+  stopScan();
+  show("sRoute", false);
+  show("sSlip", false);
+  show("sProof", false);
+  show("sDone", false);
+  show("sList", true);
+  loadOrders();
+  scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openSlip() {
+  if (!active) return;
+  show("sSlip", true);
+  setMsg("scanMsg", "");
+  setMsg("codeMsg", "");
+  setTab(true);
+  $("sSlip").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function verifyCustomer(code) {
+  if (!active || busy) return;
+  const c = String(code || "").trim();
+  if (c.replace(/[^A-Za-z0-9]/g, "").length < 4) return setMsg("codeMsg", x("inv"), "bad");
+  busy = true;
+  setMsg("codeMsg", x("checking"));
+  try {
+    const { data, error } = await supabase.rpc("dispatch_verify", { p_dcode: active.dcode, p_code: c });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      const map = { mismatch: x("mismatch"), used: x("used"), wait: x("wait"), invalid: x("inv"), cancelled: x("mismatch") };
+      return setMsg("codeMsg", map[data && data.code] || x("mismatch"), "bad");
+    }
+    verified = data;
+    stopScan();
+    setMsg("codeMsg", "");
+    renderProof();
+    show("sProof", true);
+    $("sProof").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    setMsg("codeMsg", x("net"), "bad");
+  } finally {
+    busy = false;
+  }
 }
 
 function renderProof() {
@@ -259,8 +385,7 @@ function renderProof() {
   const items = Array.isArray(v.items) ? v.items : [];
   const proof = safeUrl(v.proof);
   const rows = items.map(i => `<div class="grow"><img src="${esc(safeUrl(i.image) ? thumb(i.image, "t") : "")}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(i.name)}</b><small>${esc(x("carton"))} · ${esc(naira(Number(i.price) || 0))}</small></div><div class="q">×${esc(i.qty)}</div></div>`).join("");
-  $("sProof").innerHTML = `<div class="rcard">
-    <div class="rcode"><b>${esc(v.code)}</b><span>${esc(x("ordered"))}: ${esc(new Date(Number(v.created_at) || Date.now()).toLocaleString())}</span></div>
+  $("sProof").innerHTML = `<div class="dd-proof">
     <div class="banner ok"><i class="fa-solid fa-circle-check"></i><span>${esc(x("paid"))}</span></div>
     <div class="glist"><small class="lbl">${esc(x("items"))}</small>${rows}</div>
     <div class="gtot"><span>${esc(x("total"))}</span><b>${esc(naira(Number(v.total) || 0))}</b></div>
@@ -269,136 +394,30 @@ function renderProof() {
   </div>`;
 }
 
-function resetAll() {
-  stopScan();
-  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
-  dispatch = null;
-  verified = null;
-  pendingCustomer = "";
-  try { localStorage.removeItem(KEY); } catch (e) {}
-  $("dcIn").value = "";
-  $("codeIn").value = "";
-  $("dInfo").innerHTML = "";
-  $("mapMount").innerHTML = "";
-  setMsg("dMsg", "");
-  setMsg("vMsg", "");
-  ["sDelivery", "sVerify", "sProof", "sDone"].forEach(id => show(id, false));
-  show("sDispatch", true);
-  setStep(1);
-  setTab(true);
-  scrollTo({ top: 0, behavior: "smooth" });
-}
-
-async function openDispatch(code) {
-  if (busy) return;
-  const c = String(code || "").trim();
-  if (c.replace(/[^A-Za-z0-9]/g, "").length < 4) return setMsg("dMsg", x("invalid"), "bad");
-  busy = true;
-  $("dGo").disabled = true;
-  setMsg("dMsg", x("open"));
-  try {
-    const { data, error } = await supabase.rpc("dispatch_lookup", { p_dcode: c });
-    if (error) throw error;
-    if (!data || !data.ok) {
-      try { localStorage.removeItem(KEY); } catch (e) {}
-      return setMsg("dMsg", errText(data && data.code), "bad");
-    }
-    if (data.status === "done") {
-      try { localStorage.removeItem(KEY); } catch (e) {}
-      return setMsg("dMsg", x("doneAlready"), "bad");
-    }
-    dispatch = data;
-    try { localStorage.setItem(KEY, data.dcode); } catch (e) {}
-    setMsg("dMsg", "");
-    show("sDispatch", false);
-    show("sDelivery", true);
-    show("sVerify", true);
-    setStep(2);
-    renderInfo();
-    mountMap();
-    if (pendingCustomer) {
-      const pc = pendingCustomer;
-      pendingCustomer = "";
-      busy = false;
-      verifyCode(pc);
-    }
-  } catch (e) {
-    console.error(e);
-    setMsg("dMsg", x("net"), "bad");
-  } finally {
-    busy = false;
-    $("dGo").disabled = false;
-  }
-}
-
-async function verifyCode(code) {
-  if (!dispatch) {
-    pendingCustomer = String(code || "").trim();
-    return setMsg("dMsg", x("needD"), "bad");
-  }
-  if (busy) return;
-  const c = String(code || "").trim();
-  if (c.replace(/[^A-Za-z0-9]/g, "").length < 4) return setMsg("vMsg", x("invalid"), "bad");
-  busy = true;
-  setMsg("vMsg", x("checking"));
-  try {
-    const { data, error } = await supabase.rpc("dispatch_verify", { p_dcode: dispatch.dcode, p_code: c });
-    if (error) throw error;
-    if (!data || !data.ok) return setMsg("vMsg", errText(data && data.code), "bad");
-    verified = data;
-    stopScan();
-    setMsg("vMsg", "");
-    renderProof();
-    show("sProof", true);
-    setStep(3);
-    $("sProof").scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (e) {
-    console.error(e);
-    setMsg("vMsg", x("net"), "bad");
-  } finally {
-    busy = false;
-  }
-}
-
-$("dForm").addEventListener("submit", e => {
-  e.preventDefault();
-  openDispatch($("dcIn").value);
-});
-
-$("typeBox").addEventListener("submit", e => {
-  e.preventDefault();
-  verifyCode($("codeIn").value);
-});
-
-function getPos(timeout) {
-  return new Promise(res => {
-    if (!navigator.geolocation) return res(null);
-    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), () => res(null), { enableHighAccuracy: true, timeout, maximumAge: 20000 });
-  });
-}
-
 function askConfirm(extra) {
   return new Promise(res => {
     const dlg = $("dlg");
-    const saved = localStorage.getItem("hs_driver") || (dispatch && dispatch.driver_name) || "";
-    dlg.innerHTML = `<div class="dlgc"><h3>${esc(x("cTitle"))}</h3><p>${esc(x("cText"))}</p>${extra ? `<div class="warnbox">${esc(extra)}</div>` : ""}<div class="fld"><input id="dgName" type="text" maxlength="60" value="${esc(saved)}" placeholder="${esc(x("dName"))}" autocomplete="name"></div><div class="fld"><input id="dgNote" type="text" maxlength="200" placeholder="${esc(x("dNote"))}"></div><div class="row"><button class="bt ghost" type="button" data-r="no">${esc(x("cancel"))}</button><button class="bt red" type="button" data-r="yes"><i class="fa-solid fa-check"></i>${esc(x("yes"))}</button></div></div>`;
+    dlg.innerHTML = `<div class="dlgc"><h3>${esc(x("cTitle"))}</h3><p>${esc(x("cText"))}</p>${extra ? `<div class="warnbox">${esc(extra)}</div>` : ""}<div class="fld"><input id="dgNote" type="text" maxlength="200" placeholder="${esc(x("dNote"))}"></div><div class="row"><button class="bt ghost" type="button" data-r="no">${esc(x("cancel"))}</button><button class="bt red" type="button" data-r="yes"><i class="fa-solid fa-check"></i>${esc(x("yes"))}</button></div></div>`;
     dlg.hidden = false;
     const finish = v => { dlg.hidden = true; dlg.innerHTML = ""; dlg.onclick = null; res(v); };
     dlg.onclick = e => {
       const b = e.target.closest("[data-r]");
       if (e.target === dlg || (b && b.dataset.r === "no")) return finish(null);
-      if (b && b.dataset.r === "yes") {
-        const name = $("dgName").value.trim();
-        if (name.length < 2) return toast("error", x("nameReq"));
-        try { localStorage.setItem("hs_driver", name); } catch (err) {}
-        finish({ name, note: $("dgNote").value.trim() });
-      }
+      if (b && b.dataset.r === "yes") finish({ note: $("dgNote").value.trim() });
     };
   });
 }
 
+function getPos(timeout) {
+  return new Promise(res => {
+    if (lastFix) return res(lastFix);
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), () => res(null), { enableHighAccuracy: true, timeout, maximumAge: 20000 });
+  });
+}
+
 async function confirmDelivery() {
-  if (!dispatch || !verified || busy) return;
+  if (!active || !verified || busy) return;
   const pos = await getPos(6000);
   let extra = "";
   if (pos && hasPos(verified)) {
@@ -410,27 +429,28 @@ async function confirmDelivery() {
   busy = true;
   try {
     const { data, error } = await supabase.rpc("dispatch_confirm", {
-      p_dcode: dispatch.dcode,
+      p_dcode: active.dcode,
       p_code: verified.code,
-      p_driver: ans.name,
+      p_driver: me ? me.name : null,
       p_note: ans.note || null,
       p_lat: pos ? pos.lat : null,
       p_lng: pos ? pos.lng : null
     });
     if (error) throw error;
-    if (!data || !data.ok) return toast("error", errText(data && data.code));
-    stopScan();
+    if (!data || !data.ok) return toast("error", x("mismatch"));
     if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
-    dispatch = null;
+    $("routeMap").innerHTML = "";
+    stopScan();
+    active = null;
     verified = null;
-    try { localStorage.removeItem(KEY); } catch (e) {}
-    ["sDelivery", "sVerify", "sProof", "sDispatch"].forEach(id => show(id, false));
-    $("sDone").innerHTML = `<div class="donecard"><div class="mk"><i class="fa-solid fa-check"></i></div><h2>${esc(x("done"))}</h2><p>${esc(x("doneP"))}</p><button class="bt" type="button" data-a="again"><i class="fa-solid fa-route"></i>${esc(x("another"))}</button></div>`;
+    show("sRoute", false);
+    show("sSlip", false);
+    show("sProof", false);
+    $("sDone").innerHTML = `<div class="donecard"><div class="mk"><i class="fa-solid fa-check"></i></div><h2>${esc(x("done"))}</h2><p>${esc(x("doneP"))}</p><button class="bt" type="button" data-a="back"><i class="fa-solid fa-list"></i>${esc(x("back"))}</button></div>`;
     show("sDone", true);
-    setStep(3);
     scrollTo({ top: 0, behavior: "smooth" });
+    loadOrders();
   } catch (e) {
-    console.error(e);
     toast("error", x("net"));
   } finally {
     busy = false;
@@ -441,34 +461,120 @@ document.addEventListener("click", e => {
   const z = e.target.closest("[data-zoom]");
   if (z) { $("zoomImg").src = z.dataset.zoom; show("zoom", true); return; }
   const a = e.target.closest("[data-a]");
-  if (!a) return;
-  if (a.dataset.a === "confirm") confirmDelivery();
-  if (a.dataset.a === "again") resetAll();
-  if (a.dataset.a === "copy" && dispatch) copyText(dispatch.address || "", x("copied"));
+  if (a) {
+    const k = a.dataset.a;
+    if (k === "open") {
+      const card = a.closest(".dd-card");
+      const o = orders.find(z2 => z2.dcode === card.dataset.d);
+      if (o) openRoute(o);
+    }
+    if (k === "slip") openSlip();
+    if (k === "confirm") confirmDelivery();
+    if (k === "back") closeRoute();
+    return;
+  }
+  if (e.target.closest("#routeBack")) closeRoute();
+  if (e.target.closest("#routeSlip")) openSlip();
+  if (e.target.closest("#logoutBtn")) signOut();
 });
 
 $("zoom").addEventListener("click", () => show("zoom", false));
-document.addEventListener("visibilitychange", () => { if (document.hidden) stopScan(); });
-window.addEventListener("pagehide", stopScan);
-window.addEventListener("langchange", () => {
-  if (dispatch) renderInfo();
-  if (verified) renderProof();
+
+function enterDashboard() {
+  show("sSignin", false);
+  show("sHead", true);
+  show("sList", true);
+  show("sRoute", false);
+  show("sSlip", false);
+  show("sProof", false);
+  show("sDone", false);
+  startGps();
+  startPing();
+  loadOrders();
+  clearInterval(listTimer);
+  listTimer = setInterval(loadOrders, LIST_MS);
+}
+
+function signOut(msg) {
+  stopPing();
+  stopScan();
+  if (closeMap) { try { closeMap(); } catch (e) {} closeMap = null; }
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  key = "";
+  me = null;
+  orders = [];
+  active = null;
+  verified = null;
+  clearInterval(listTimer);
+  show("sHead", false);
+  show("sRoute", false);
+  show("sSlip", false);
+  show("sProof", false);
+  show("sDone", false);
+  show("sList", false);
+  show("sSignin", true);
+  setMsg("loginMsg", msg || "");
+  $("keyIn").value = "";
+}
+
+async function signIn(raw) {
+  const k = String(raw || "").trim();
+  if (k.replace(/[^A-Za-z0-9]/g, "").length < 6) return setMsg("loginMsg", x("bad"), "bad");
+  busy = true;
+  $("loginBtn").disabled = true;
+  setMsg("loginMsg", "");
+  try {
+    const { data, error } = await supabase.rpc("driver_login", { p_key: k });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      const msg = data && data.code === "blocked" ? x("blocked") : data && data.code === "wait" ? x("wait") : x("bad");
+      return setMsg("loginMsg", msg, "bad");
+    }
+    key = data.dkey;
+    me = { name: data.name, done_today: 0 };
+    try { localStorage.setItem(KEY, key); } catch (err) {}
+    enterDashboard();
+  } catch (e) {
+    setMsg("loginMsg", x("net"), "bad");
+  } finally {
+    busy = false;
+    $("loginBtn").disabled = false;
+  }
+}
+
+$("loginForm").addEventListener("submit", e => {
+  e.preventDefault();
+  signIn($("keyIn").value);
 });
+$("keyIn").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""); });
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopScan();
+  else if (key) { pingOnce(); loadOrders(); }
+});
+window.addEventListener("pagehide", () => { if (key) setOnline(false); });
+window.addEventListener("langchange", () => { if (key) renderOrders(); });
 
 setDevice();
 initLang();
 
 const params = new URLSearchParams(location.search);
-const urlD = params.get("d");
-const urlC = params.get("code");
-if (urlD || urlC) history.replaceState({}, "", location.pathname);
-if (urlC) pendingCustomer = urlC;
-let savedCode = "";
-try { savedCode = localStorage.getItem(KEY) || ""; } catch (e) {}
-const first = urlD || savedCode;
-if (first) {
-  $("dcIn").value = first.toUpperCase();
-  openDispatch(first);
-} else if (urlC) {
-  setMsg("dMsg", x("needD"), "bad");
+const urlKey = params.get("k");
+if (urlKey) history.replaceState({}, "", location.pathname);
+let saved = "";
+try { saved = localStorage.getItem(KEY) || ""; } catch (e) {}
+const start = urlKey || saved;
+if (start) {
+  supabase.rpc("driver_login", { p_key: start }).then(({ data, error }) => {
+    if (error || !data || !data.ok) {
+      signOut(data && data.code === "blocked" ? x("blocked") : "");
+      return;
+    }
+    key = data.dkey;
+    me = { name: data.name, done_today: 0 };
+    try { localStorage.setItem(KEY, key); } catch (e) {}
+    enterDashboard();
+  }, () => signOut(x("net")));
+} else {
+  show("sSignin", true);
 }
