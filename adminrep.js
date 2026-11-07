@@ -598,3 +598,60 @@ supabase
     emptyCheck();
   })
   .subscribe();
+
+const arRoot = document.querySelector(".ar");
+const panes = { req: $("paneReq"), ord: $("paneOrd"), drv: $("paneDrv") };
+const mods = {};
+const badges = { ord: $("tOrd"), drv: $("tDrv") };
+const hashTab = { orders: "ord", drivers: "drv", requests: "req" };
+const tabCtx = {
+  badge(k, n) {
+    const b = badges[k];
+    if (!b) return;
+    b.textContent = n;
+    b.hidden = !n;
+  }
+};
+
+async function ensureTab(k) {
+  if (mods[k]) return mods[k];
+  mods[k] = (async () => {
+    try {
+      const m = await import(k === "ord" ? "./adminorders.js" : "./admindrivers.js");
+      return await m.mount(panes[k], tabCtx);
+    } catch (e) {
+      console.error(e);
+      mods[k] = null;
+      toast("error", "Could not open this section", "Check your internet and run the latest SQL files in Supabase.");
+      return null;
+    }
+  })();
+  return mods[k];
+}
+
+async function openTab(k) {
+  arRoot.dataset.tab = k;
+  $("arTabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tab === k));
+  Object.entries(panes).forEach(([n, el]) => { el.hidden = n !== k; });
+  if (k === "req") return;
+  if (!mods[k]) showLoading("Loading...");
+  try {
+    const m = await ensureTab(k);
+    if (m && m.show) m.show();
+  } finally {
+    hideLoading();
+  }
+}
+
+$("arTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-tab]");
+  if (!b) return;
+  const k = b.dataset.tab;
+  history.replaceState(null, "", k === "req" ? location.pathname : "#" + (k === "ord" ? "orders" : "drivers"));
+  openTab(k);
+});
+
+const startTab = hashTab[location.hash.slice(1)] || "req";
+if (startTab !== "req") openTab(startTab);
+setTimeout(() => { ensureTab("ord"); ensureTab("drv"); }, 2500);
+
