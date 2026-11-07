@@ -4,44 +4,56 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#06130d">
-<title>Hamstore Admin - Requests</title>
+<title>Hamstore Admin - Requests, orders and drivers</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
 <link rel="stylesheet" href="allui.css">
 <link rel="stylesheet" href="adminrep.css">
 </head>
 <body>
-<main class="wrap ar">
+<main class="wrap ar" data-tab="req">
   <div class="topline">
-    <h2><span class="livedot"></span>Requests and reports</h2>
+    <h2><span class="livedot"></span>Requests, orders and drivers</h2>
     <div class="tools">
       <button class="ghost" id="alerts" type="button"></button>
       <button class="ghost" id="exportBtn" type="button"><i class="fa-solid fa-file-csv"></i>Export</button>
+      <button class="ghost" id="clearDone" type="button"><i class="fa-solid fa-broom"></i>Clear done</button>
       <button class="ghost" id="settings" type="button"><i class="fa-solid fa-gear"></i>Settings</button>
     </div>
   </div>
 
-  <div class="ar-stats">
-    <div class="s new"><i class="fa-solid fa-bell"></i><b id="sNew">0</b><small>New</small></div>
-    <div class="s"><i class="fa-solid fa-calendar-day"></i><b id="sToday">0</b><small>Today</small></div>
-    <div class="s"><i class="fa-solid fa-microphone-lines"></i><b id="sVoice">0</b><small>Voice notes</small></div>
-    <div class="s"><i class="fa-solid fa-cart-shopping"></i><b id="sOrder">0</b><small>Orders</small></div>
-  </div>
+  <nav class="ar-tabs" id="arTabs" role="tablist">
+    <button class="ar-tab on" data-tab="req" type="button" role="tab"><i class="fa-solid fa-inbox"></i>Requests <span class="ar-badge" id="tReq" hidden></span></button>
+    <button class="ar-tab" data-tab="ord" type="button" role="tab"><i class="fa-solid fa-truck-fast"></i>Orders <span class="ar-badge" id="tOrd" hidden>0</span></button>
+    <button class="ar-tab" data-tab="drv" type="button" role="tab"><i class="fa-solid fa-id-card-clip"></i>Drivers <span class="ar-badge" id="tDrv" hidden>0</span></button>
+  </nav>
 
-  <label class="ar-search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" type="search" autocomplete="off" placeholder="Search name, phone, message, address or IP"></label>
+  <section id="paneReq">
+    <div class="ar-stats">
+      <div class="s new"><i class="fa-solid fa-bell"></i><b id="sNew">0</b><small>New</small></div>
+      <div class="s"><i class="fa-solid fa-calendar-day"></i><b id="sToday">0</b><small>Today</small></div>
+      <div class="s"><i class="fa-solid fa-microphone-lines"></i><b id="sVoice">0</b><small>Voice notes</small></div>
+      <div class="s"><i class="fa-solid fa-cart-shopping"></i><b id="sOrder">0</b><small>Orders</small></div>
+    </div>
 
-  <div class="chips" id="filters">
-    <button class="chip on" data-f="new">New <b>0</b></button>
-    <button class="chip" data-f="order">Orders <b>0</b></button>
-    <button class="chip" data-f="stock">No stock <b>0</b></button>
-    <button class="chip" data-f="message">Messages <b>0</b></button>
-    <button class="chip" data-f="voice">Voice <b>0</b></button>
-    <button class="chip" data-f="done">Done <b>0</b></button>
-    <button class="chip" data-f="all">All <b>0</b></button>
-  </div>
+    <label class="ar-search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" type="search" autocomplete="off" placeholder="Search name, phone, message, address or IP"></label>
 
-  <div class="rg" id="list"></div>
-  <div class="empty" id="empty" hidden><i class="fa-regular fa-bell" style="font-size:28px"></i><p>Nothing here yet.</p></div>
-  <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
+    <div class="chips" id="filters">
+      <button class="chip on" data-f="new">New <b>0</b></button>
+      <button class="chip" data-f="order">Orders <b>0</b></button>
+      <button class="chip" data-f="stock">No stock <b>0</b></button>
+      <button class="chip" data-f="message">Messages <b>0</b></button>
+      <button class="chip" data-f="voice">Voice <b>0</b></button>
+      <button class="chip" data-f="done">Done <b>0</b></button>
+      <button class="chip" data-f="all">All <b>0</b></button>
+    </div>
+
+    <div class="rg" id="list"></div>
+    <div class="empty" id="empty" hidden><i class="fa-regular fa-bell" style="font-size:28px"></i><p>Nothing here yet.</p></div>
+    <button class="btn more" id="more" type="button" hidden><i class="fa-solid fa-angles-down"></i>Load more</button>
+  </section>
+
+  <section id="paneOrd" hidden></section>
+  <section id="paneDrv" hidden></section>
 </main>
 
 <script type="module" src="allui.js"></script>
