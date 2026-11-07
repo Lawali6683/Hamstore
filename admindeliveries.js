@@ -1,6 +1,6 @@
 import { supabase, must } from "./supabase.js";
 import { requireAdmin } from "./guard.js";
-import { toast, confirmBox, telHref, esc, ago } from "./allui.js";
+import { toast, confirmBox, openModal, telHref, esc, ago } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 import { openRouteMap } from "./hsmap.js";
 import { downloadSlip } from "./slip.js";
@@ -10,6 +10,7 @@ await requireAdmin("rep");
 const PAGE = 20;
 const $ = id => document.getElementById(id);
 const rows = new Map();
+const dmap = new Map();
 const baseTitle = document.title;
 let done = false;
 let busy = false;
@@ -56,6 +57,7 @@ function cardHTML(r) {
   const isDone = r.status === "delivered";
   const pos = hasPos(r);
   const when = new Date(r.createdAt).toLocaleString();
+  const dp = dmap.get(r.code);
   const proof = safeUrl(r.proof_url);
   const lines = r.list.map(i => `<div class="ar-row"><i class="fa-solid fa-box"></i><span>${esc(i.name)} × ${esc(i.qty)}</span><b>${esc(naira(i.line || (Number(i.price) || 0) * (Number(i.qty) || 0)))}</b></div>`).join("");
   return `<article class="ar-card ${isDone ? "done" : "order"}" data-id="${esc(r.code)}">
@@ -70,6 +72,7 @@ function cardHTML(r) {
     ${r.address ? `<div class="ar-rows"><div class="ar-row"><i class="fa-solid fa-location-dot"></i><span>${esc(r.address)}</span><button class="cp" type="button" data-copy="${esc(r.address)}" aria-label="Copy"><i class="fa-regular fa-copy"></i></button></div></div>` : ""}
     ${proof ? `<a class="ar-proof" href="${esc(proof)}" target="_blank" rel="noopener"><img src="${esc(proof)}" alt="Payment proof" loading="lazy"><span><i class="fa-solid fa-receipt"></i>Payment proof</span></a>` : ""}
     ${isDone ? `<div class="ar-rows"><div class="ar-row"><i class="fa-solid fa-id-badge"></i><span>Driver: ${esc(r.driver || "-")}</span></div><div class="ar-row"><i class="fa-solid fa-check-double"></i><span>${esc(new Date(r.deliveredAt).toLocaleString())}</span></div>${r.note ? `<div class="ar-row"><i class="fa-solid fa-note-sticky"></i><span>${esc(r.note)}</span></div>` : ""}</div>` : ""}
+    ${!isDone && dp ? `<div class="ar-disp"><i class="fa-solid fa-id-badge"></i><div><b>${esc(dp.dcode)}</b><span>${esc(dp.driver_name || "Driver")} · ${dp.opened_at ? "driver opened it" : "not opened yet"}</span></div><button class="ab" data-act="dcopy" type="button" aria-label="Copy"><i class="fa-regular fa-copy"></i></button><button class="ab wa" data-act="dshare" type="button" aria-label="Share"><i class="fa-brands fa-whatsapp"></i></button><button class="ab danger" data-act="dcancel" type="button" aria-label="Cancel code"><i class="fa-solid fa-ban"></i></button></div>` : ""}
     <div class="ar-acts">
       ${!isDone && r.phone ? `<a class="ab call" href="${telHref(r.phone)}"><i class="fa-solid fa-phone"></i>Call</a><a class="ab wa" href="https://wa.me/${waNum(r.phone)}?text=${encodeURIComponent("Hello " + (r.name || "") + ", this is Hamstore. Your order " + r.code + " is on the way. Give the code to the driver when goods arrive.")}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i>WhatsApp</a>` : ""}
       ${!isDone && pos ? '<button class="ab route" data-act="map" type="button"><i class="fa-solid fa-route"></i>Map and route</button>' : ""}
@@ -192,6 +195,27 @@ $("list").addEventListener("click", async e => {
     }
     return;
   }
+  if (act === "__dsend_off") return sendToDriver(r);
+  if (act === "dcopy" || act === "dshare" || act === "dcancel") {
+    const dp = dmap.get(r.code);
+    if (!dp) return;
+    if (act === "dcopy") {
+      try { await navigator.clipboard.writeText(dp.dcode); toast("success", "Copied", dp.dcode); } catch (err) {}
+      return;
+    }
+    if (act === "dshare") return shareCode(dp.dcode, dp.driver_name);
+    if (!(await confirmBox({ title: "Cancel this driver code?", text: dp.dcode + " will stop working.", okText: "Cancel code", danger: true }))) return;
+    try {
+      const up = must(await supabase.from("dispatches").update({ status: "cancelled" }).eq("dcode", dp.dcode).select("dcode"));
+      if (!up || !up.length) throw new Error("denied");
+      dmap.delete(r.code);
+      upsert(r, false);
+      toast("success", "Cancelled", dp.dcode);
+    } catch (err) {
+      toast("error", "Could not cancel", "Run hamstore_driver_v3.sql in Supabase.");
+    }
+    return;
+  }
   if (act === "del") {
     if (!(await confirmBox({ title: "Delete this delivery?", text: r.code + " will no longer open for the driver.", okText: "Delete", danger: true }))) return;
     try {
@@ -208,6 +232,51 @@ $("list").addEventListener("click", async e => {
     }
   }
 });
+
+const driverLink = c => location.origin + "/driver.html?d=" + encodeURIComponent(c);
+
+function shareCode(dcode, name) {
+  const msg = "Hamstore delivery" + (name ? " for " + name : "") + ".\nDriver code: " + dcode + "\nOpen this link, it shows the address and the route:\n" + driverLink(dcode) + "\nAt the customer, scan the QR on his slip or type his code.";
+  window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank", "noopener");
+}
+
+async function loadDispatches() {
+  try {
+    const list = must(await supabase.from("dispatches").select("dcode,delivery_code,driver_name,status,opened_at,created_at").eq("status", "open").order("created_at", { ascending: false }).limit(300)) || [];
+    dmap.clear();
+    list.forEach(x => { if (!dmap.has(x.delivery_code)) dmap.set(x.delivery_code, x); });
+  } catch (e) {}
+}
+
+function sendToDriver(r) {
+  const box = document.createElement("div");
+  box.innerHTML = `<h3>Send to driver</h3><p class="hint" style="opacity:.75">Creates a code for ${esc(r.code)}. The driver opens it to see the address, the customer phone and the route. A new code cancels the old one.</p>
+    <div class="field"><i class="fa-solid fa-id-badge lead"></i><input id="dvName" type="text" maxlength="60" placeholder="Driver name (optional)"></div>
+    <div id="dvOut"></div>
+    <div class="row"><button class="ghost" id="dvClose" type="button">Close</button><button class="btn" id="dvMake" type="button"><i class="fa-solid fa-key"></i>Create driver code</button></div>`;
+  const close = openModal(box);
+  box.querySelector("#dvClose").onclick = close;
+  box.querySelector("#dvMake").onclick = async ev => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    try {
+      const { data, error } = await supabase.rpc("admin_create_dispatch", { p_delivery_code: r.code, p_driver: box.querySelector("#dvName").value.trim() || null });
+      if (error) throw error;
+      if (!data || !data.ok) throw new Error(data && data.code ? data.code : "failed");
+      await loadDispatches();
+      upsert(r, false);
+      const name = box.querySelector("#dvName").value.trim();
+      box.querySelector("#dvOut").innerHTML = `<div class="ar-disp big"><i class="fa-solid fa-id-badge"></i><div><b>${esc(data.dcode)}</b><span>${esc(driverLink(data.dcode))}</span></div></div><div class="row" style="justify-content:flex-start"><button class="btn" id="dvWa" type="button"><i class="fa-brands fa-whatsapp"></i>Send on WhatsApp</button><button class="ghost" id="dvCp" type="button"><i class="fa-regular fa-copy"></i>Copy code</button></div>`;
+      box.querySelector("#dvWa").onclick = () => shareCode(data.dcode, name);
+      box.querySelector("#dvCp").onclick = async () => { try { await navigator.clipboard.writeText(data.dcode); toast("success", "Copied", data.dcode); } catch (err) {} };
+      btn.hidden = true;
+    } catch (err) {
+      toast("error", "Could not create the code", "Run hamstore_driver_v3.sql in Supabase, and sign in as an admin.");
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
 
 function beep() {
   if (!soundOn) return;
@@ -322,6 +391,7 @@ $("accForm").addEventListener("submit", async e => {
 });
 
 showLoading("Loading deliveries...");
+await loadDispatches();
 await loadMore();
 await loadAccs();
 hideLoading();
@@ -357,3 +427,10 @@ supabase
   })
   .subscribe();
 
+supabase
+  .channel("dispatches-live")
+  .on("postgres_changes", { event: "*", schema: "public", table: "dispatches" }, async () => {
+    await loadDispatches();
+    rows.forEach(r => { if (r.status === "pending" && cardEl(r.code)) upsert(r, false); });
+  })
+  .subscribe();
