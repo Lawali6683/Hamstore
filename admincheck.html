@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Order check</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="adm">
+<main class="wrap ck">
+  <div class="hubhead">
+    <h1>Order check</h1>
+    <p>New orders from the website should appear here within a few seconds. If one does not, the problem is in the checkout or the database, not in the admin pages.</p>
+  </div>
+
+  <div class="ck-top">
+    <button class="btn" id="refresh" type="button"><i class="fa-solid fa-rotate"></i>Refresh</button>
+    <a class="btn ghost" href="buy.html"><i class="fa-solid fa-bag-shopping"></i>Open checkout</a>
+  </div>
+
+  <div class="ck-grid" id="stats"></div>
+
+  <section class="ck-card">
+    <h3><i class="fa-solid fa-list-check"></i>Latest orders in the database</h3>
+    <div id="latest"></div>
+  </section>
+
+  <section class="ck-card">
+    <h3><i class="fa-solid fa-circle-info"></i>What to check if an order is missing</h3>
+    <ol class="ck-steps">
+      <li>Run <b>hamstore_orders_fix.sql</b> in Supabase SQL Editor once. It creates the <b>place_order</b> function that checkout uses.</li>
+      <li>Make sure the payment account is saved in <b>Payment accounts</b>. Without one, checkout refuses the order.</li>
+      <li>Make sure <b>Online buying</b> is on. If it is off, checkout refuses the order.</li>
+      <li>Place a test order, then press <b>Refresh</b> here.</li>
+    </ol>
+  </section>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="admincheck.js"></script>
+</body>
+</html>
