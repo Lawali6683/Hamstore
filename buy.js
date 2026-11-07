@@ -199,14 +199,17 @@ const getPos = (timeout = 10000) => new Promise((res, rej) => {
 });
 
 async function reverse(lat, lng) {
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 5000);
   try {
-    const ctl = new AbortController();
-    const tm = setTimeout(() => ctl.abort(), 5000);
     const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=${getLang()}`, { signal: ctl.signal });
-    clearTimeout(tm);
     const j = await r.json();
     return j.display_name || "";
-  } catch (e) { return ""; }
+  } catch (e) {
+    return "";
+  } finally {
+    clearTimeout(tm);
+  }
 }
 
 $("bLoc").onclick = async () => {
@@ -234,6 +237,17 @@ async function showDone() {
   $("qrSite").replaceChildren(...(b ? [b] : []));
 }
 
+const ERRORS = [
+  ["closed", () => t("e.closed")],
+  ["no_account", () => x("noacc")],
+  ["gone", () => t("buy.e.gone")],
+  ["wait", () => t("e.wait")],
+  ["phone", () => t("buy.e.phone")],
+  ["address", () => t("buy.e.addr")],
+  ["proof", () => t("buy.e.shot")],
+  ["name", () => t("buy.e.name")]
+];
+
 $("form").addEventListener("submit", async e => {
   e.preventDefault();
   if (busy || !ready()) return;
@@ -249,29 +263,29 @@ $("form").addEventListener("submit", async e => {
   $("bSubmit").disabled = true;
   showLoading(x("sending"));
   try {
+    if (!where) { try { where = await getPos(4000); } catch (err) { where = null; } }
     let link = shotLink;
     if (!link) {
       try { link = await upP; } catch (err) { link = ""; }
       if (!link) link = await uploadToImgur(shot.blob);
     }
-    const ctl = new AbortController();
-    const tm = setTimeout(() => ctl.abort(), 30000);
-    const res = await fetch("/api/pay", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone, address, shot: link, items: items.map(i => ({ id: i.id, qty: i.qty })) }),
-      signal: ctl.signal
+    const { data, error } = await supabase.rpc("place_order", {
+      p_name: name,
+      p_phone: phone,
+      p_address: address,
+      p_lat: where ? where.lat : null,
+      p_lng: where ? where.lng : null,
+      p_proof: link,
+      p_items: items.map(i => ({ id: i.id, qty: i.qty }))
     });
-    clearTimeout(tm);
-    const j = await res.json();
-    if (!j.ok) {
-      const msg = j.code === "closed" ? t("e.closed") : j.code === "gone" ? t("buy.e.gone") : j.code === "wait" ? t("e.wait") : j.code === "phone" ? t("buy.e.phone") : /account/i.test(String(j.code || j.error || "")) ? x("noacc") : t("e.server");
-      return toast("error", msg);
-    }
+    if (error) throw error;
+    const j = data || {};
+    if (!j.ok) return toast("error", t("e.server"));
+
     order = {
       code: j.code,
       total: Number(j.total) || sum(),
-      createdAt: Number(j.createdAt) || Date.now(),
+      createdAt: Number(j.created_at) || Date.now(),
       name,
       phone,
       address,
@@ -286,13 +300,14 @@ $("form").addEventListener("submit", async e => {
     layout();
     await showDone();
     scrollTo({ top: 0, behavior: "smooth" });
-    const attach = pos => { if (pos) supabase.rpc("attach_location", { p_code: order.code, p_lat: pos.lat, p_lng: pos.lng }).then(() => {}, () => {}); };
-    if (where) attach(where);
-    else if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: "geolocation" }).then(st => { if (st.state === "granted") getPos(6000).then(attach, () => {}); }, () => {});
-    }
   } catch (err) {
-    toast("error", err && err.name === "AbortError" ? x("slow") : err && err.message === "upload" ? t("buy.e.shot") : t("err.net"));
+    console.error(err);
+    const m = String((err && err.message) || "");
+    const hit = ERRORS.find(([k]) => m.includes(k));
+    if (hit) toast("error", hit[1]());
+    else if (err && err.message === "upload") toast("error", t("buy.e.shot"));
+    else if (/failed to fetch|network/i.test(m)) toast("error", t("err.net"));
+    else toast("error", t("e.server"));
   } finally {
     busy = false;
     hideLoading();
@@ -320,7 +335,10 @@ $("lastPdf").onclick = async () => {
   try { await downloadSlip(o); } catch (e) { toast("error", t("err.net")); } finally { hideLoading(); }
 };
 
-window.addEventListener("langchange", () => { if (items.length) renderItems(); layout(); if (!$("bUp").hidden) setUp($("bUp").classList.contains("ok") ? "ok" : $("bUp").classList.contains("fail") ? "fail" : "work"); });
+window.addEventListener("langchange", () => {
+  if (items.length) renderItems();
+  layout();
+});
 
 setDevice();
 initLang();
@@ -348,6 +366,7 @@ try {
   closed = !shopRes.error && !!shopRes.data && shopRes.data.value === "no";
   if (accRes.error) toast("error", t("err.net"));
 } catch (e) {
+  console.error(e);
   toast("error", t("err.net"));
 }
 hideLoading();
