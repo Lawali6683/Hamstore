@@ -14,6 +14,8 @@ const LIMIT = 60;
 const MORE = 24;
 const BUCKET = "Audio_url";
 
+const ROUTE_MAX_KM = 60;
+
 const IMG = {
   sachet: "https://i.imgur.com/gh63h20.png",
   bottle: "https://i.imgur.com/GNmZBuL.png",
@@ -23,13 +25,13 @@ const IMG = {
 
 const X = {
   en: {
-    search: "Search products", sendBoth: "Send voice note and message", sendVoice: "Send voice note", sendMsg: "Send message", nobr: "No branch is available yet.", nbOpen: "The branch closest to where you are now.", yourloc: "Your location", noloc: "We could not get your location. Allow location access and try again.", retry: "Try again", routeBtn: "Show route on map", others: "Other branches near you", offline: "You are offline. Check your internet.", online: "Back online", wamsg: "Hello, I am on my way to your branch. My location:", copied: "Link copied", stext: "Fresh drinks and U-Fresh water by the carton at Hamstore.", post: "Making your poster...", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
+    search: "Search products", sendBoth: "Send voice note and message", sendVoice: "Send voice note", sendMsg: "Send message", nobr: "No branch is available yet.", nbOpen: "The branch closest to where you are now.", yourloc: "Your location", noloc: "We could not get your location. Allow location access and try again.", retry: "Try again", routeBtn: "Show route on map", others: "Other branches near you", offline: "You are offline. Check your internet.", online: "Back online", wamsg: "Hello, I am on my way to your branch. My location:", far: "Too far to draw the road from here.", copied: "Link copied", stext: "Fresh drinks and U-Fresh water by the carton at Hamstore.", post: "Making your poster...", all: "All", water: "Water", drinks: "Drinks", add: "Add", cartons: "cartons", none: "No product found.",
     pick: "Choose a product, type how many cartons, and watch your total grow before you pay.",
     upl: "Uploading your report...", upfail: "Could not upload the voice note. Try again.",
     addr: "Your address", voice: "Voice note", ip: "IP address", sent: "Sent", noaddr: "Not available", live: "LIVE", closed: "SHOP CLOSED"
   },
   ha: {
-    search: "Nemi kaya", sendBoth: "Tura murya da saƙo", sendVoice: "Tura saƙon murya", sendMsg: "Tura saƙo", nobr: "Babu reshe (branch) tukuna.", nbOpen: "Reshen da ya fi kusa da inda kake yanzu.", yourloc: "Inda kake", noloc: "Ba mu samu wurinka ba. Ka ba da izinin location ka sake gwadawa.", retry: "Sake gwadawa", routeBtn: "Nuna hanya a taswira", others: "Sauran rassa kusa da kai", offline: "Babu intanet. Ka duba haɗin ka.", online: "An dawo kan intanet", wamsg: "Sannu, ina hanyar zuwa reshenku. Wurina:", copied: "An kwafi hanyar shafi", stext: "Lemuka da ruwan U-Fresh da kwali a Hamstore.", post: "Ana yin fosta...", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
+    search: "Nemi kaya", sendBoth: "Tura murya da saƙo", sendVoice: "Tura saƙon murya", sendMsg: "Tura saƙo", nobr: "Babu reshe (branch) tukuna.", nbOpen: "Reshen da ya fi kusa da inda kake yanzu.", yourloc: "Inda kake", noloc: "Ba mu samu wurinka ba. Ka ba da izinin location ka sake gwadawa.", retry: "Sake gwadawa", routeBtn: "Nuna hanya a taswira", others: "Sauran rassa kusa da kai", offline: "Babu intanet. Ka duba haɗin ka.", online: "An dawo kan intanet", wamsg: "Sannu, ina hanyar zuwa reshenku. Wurina:", far: "Ba a iya zana hanya daga nan ba.", copied: "An kwafi hanyar shafi", stext: "Lemuka da ruwan U-Fresh da kwali a Hamstore.", post: "Ana yin fosta...", all: "Duka", water: "Ruwa", drinks: "Lemuka", add: "Ƙara", cartons: "kwali", none: "Ba a sami kaya ba.",
     pick: "Zaɓi kaya, rubuta yawan kwali, ka ga jimlar kuɗi tana ƙaruwa kafin ka biya.",
     upl: "Ana aika rahotonka...", upfail: "An kasa loda saƙon murya. Sake gwadawa.",
     addr: "Adireshinka", voice: "Saƙon murya", ip: "IP ɗinka", sent: "An aika", noaddr: "Babu", live: "KAI TSAYE", closed: "SHAGO A RUFE"
@@ -409,12 +411,15 @@ function startVehicle(L, map, pts) {
   }, 60);
 }
 
+const FAR_KM = 35;
+
 async function openBranch(id) {
   const b = branches.find(z => z.id === id);
   if (!b) return;
   const ov = $("bv");
   const st = branchStatus(b);
   const ph = [b.phone, b.phone2, b.phone3].filter(Boolean);
+  const ha = getLang() === "ha";
   $("bvTitle").textContent = b.name;
   $("bvImg").src = thumb(b.image, "l");
   $("bvImg").alt = b.name;
@@ -423,7 +428,7 @@ async function openBranch(id) {
   $("bvSt").textContent = st ? t(st === "open" ? "br.open" : "br.closed") : "";
   $("bvHr").textContent = b.opens && b.closes ? t("br.hours", { o: b.opens, c: b.closes }) : "";
   $("bvPh").innerHTML = ph.map(n => `<a href="${telHref(n)}"><i class="fa-solid fa-phone"></i>${esc(n)}</a>`).join("");
-  $("bvDir").href = `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}&travelmode=driving`;
+  $("bvDir").href = `https://www.google.com/maps/search/?api=1&query=${b.lat},${b.lng}`;
   $("bvWa").hidden = !ph.length;
   $("bvWa").href = ph.length ? `https://wa.me/${waNum(ph[0])}` : "#";
   $("bvRep").dataset.id = b.id;
@@ -450,11 +455,21 @@ async function openBranch(id) {
   const me = await locate(true);
   if (bvMap !== map) return;
   if (!me) { $("bvMsg").textContent = t("bv.noloc"); return; }
+
+  const straight = km(me, b);
+  $("bvKm").textContent = fmtKm(straight);
+  if (!me.exact || straight > FAR_KM) {
+    $("bvMsg").textContent = !me.exact
+      ? (ha ? "Kunna location don ganin hanya daga inda kake." : "Turn on location to see the route from where you are.")
+      : (ha ? "Reshen yana nesa da kai, ba a nuna hanya ba." : "This branch is far from you, so no route is shown.");
+    return;
+  }
+
   L.marker([me.lat, me.lng], { icon: meIcon(L), zIndexOffset: 500 }).addTo(map).bindTooltip(t("bv.you"));
   const r = await routeTo(me, { lat: b.lat, lng: b.lng });
   if (bvMap !== map) return;
 
-  $("bvMsg").textContent = t("bv.dist", { km: r.km.toFixed(1), min: r.min }) + (me.exact ? "" : " · " + t("nb.approx"));
+  $("bvMsg").textContent = t("bv.dist", { km: r.km.toFixed(1), min: r.min });
   $("bvKm").textContent = fmtKm(r.km);
   $("bvMin").textContent = fmtMin(r.min);
   $("bvArr").textContent = arriveAt(r.min);
@@ -1294,6 +1309,15 @@ $("spShare").onclick = () => {
 $("spCopy").onclick = async () => {
   try { await navigator.clipboard.writeText(siteUrl()); toast("ok", x("copied")); } catch (e) { toast("error", siteUrl()); }
 };
+
+{
+  const word = "FRESH · CARTON · DRINKS".split("");
+  const box = document.createElement("div");
+  box.className = "l3d";
+  box.setAttribute("aria-hidden", "true");
+  box.innerHTML = word.map((c, i) => `<span style="--i:${i}">${c === " " ? "&nbsp;" : c}</span>`).join("");
+  document.getElementById("top").insertAdjacentElement("afterend", box);
+}
 
 loadCart();
 initLang();
