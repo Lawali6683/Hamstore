@@ -1,5 +1,5 @@
 import { supabase, must } from "./supabase.js";
-import { toast, confirmBox, openModal, loadMap, tiles, esc, ago, telHref } from "./allui.js";
+import { toast, confirmBox, openModal, loadMap, tiles, dot, km, esc, ago, telHref } from "./allui.js";
 import { showLoading, hideLoading } from "./loading.js";
 
 const ONLINE_MS = 90000;
@@ -85,6 +85,7 @@ export async function mount(root, ctx = {}) {
         ${hasPos(d) ? '<button class="dr-b" data-act="focus" type="button" aria-label="Show on map"><i class="fa-solid fa-location-crosshairs"></i></button>' : ""}
         ${d.phone ? `<a class="dr-b" href="${telHref(d.phone)}" aria-label="Call"><i class="fa-solid fa-phone"></i></a>` : ""}
         ${d.phone ? `<a class="dr-b wa" target="_blank" rel="noopener" href="https://wa.me/${waNum(d.phone)}?text=${encodeURIComponent("Hamstore dashboard link: " + driverLink(d.dkey))}" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ""}
+        <button class="dr-b" data-act="history" type="button" aria-label="History"><i class="fa-solid fa-route"></i></button>
         <button class="dr-b" data-act="copy" type="button" aria-label="Copy link"><i class="fa-regular fa-copy"></i></button>
         <button class="dr-b" data-act="reset" type="button" aria-label="New key"><i class="fa-solid fa-rotate"></i></button>
         <button class="dr-b${blocked ? " ok" : " warn"}" data-act="block" type="button" aria-label="${blocked ? "Unblock" : "Block"}"><i class="fa-solid ${blocked ? "fa-circle-check" : "fa-ban"}"></i></button>
@@ -189,9 +190,89 @@ export async function mount(root, ctx = {}) {
     };
   };
 
+  const dist = (a, b) => km(a, b) * 1000;
+
+  const openHistory = async d => {
+    const box = document.createElement("div");
+    box.className = "dr-form dr-hist";
+    box.innerHTML = `<h3>${esc(d.name)} - history</h3>
+      <div class="dr-days"><button class="chip on" type="button" data-days="1">Today</button><button class="chip" type="button" data-days="7">Last 7 days</button></div>
+      <div class="dr-hmap" data-hmap></div>
+      <div class="dr-hstats" data-hstats></div>
+      <div class="dr-stops" data-stops></div>
+      <div class="row" style="justify-content:flex-start"><button class="ghost" type="button" data-hclose>Close</button></div>`;
+    const close = openModal(box);
+    box.querySelector("[data-hclose]").onclick = close;
+    const LL = await loadMap();
+    const hm = LL.map(box.querySelector("[data-hmap]"), { zoomControl: true }).setView(hasPos(d) ? [d.lat, d.lng] : DEFAULT_VIEW, 15);
+    tiles(LL).addTo(hm);
+    setTimeout(() => hm.invalidateSize(), 250);
+    let layers = [];
+    const clear = () => { layers.forEach(l => hm.removeLayer(l)); layers = []; };
+    const fmtT = ts => new Date(ts).toLocaleString("en-NG", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
+    const fmtMins = ms => { const m = Math.round(ms / 60000); return m < 60 ? m + " min" : Math.floor(m / 60) + "h " + (m % 60) + "m"; };
+
+    const draw = async days => {
+      box.querySelectorAll("[data-days]").forEach(b => b.classList.toggle("on", Number(b.dataset.days) === days));
+      box.querySelector("[data-hstats]").innerHTML = "<span>Loading...</span>";
+      box.querySelector("[data-stops]").innerHTML = "";
+      clear();
+      const { data, error } = await supabase.rpc("admin_driver_history", { p_id: d.id, p_days: days });
+      if (error || !data || !data.ok) {
+        box.querySelector("[data-hstats]").innerHTML = "<span>Could not load history. Run hamstore_v5_tracking.sql in Supabase.</span>";
+        return;
+      }
+      const pts = (data.points || []).map(p => ({ lat: Number(p.lat), lng: Number(p.lng), at: Number(p.at) }));
+      if (!pts.length) {
+        box.querySelector("[data-hstats]").innerHTML = "<span>No movement recorded for this period.</span>";
+        return;
+      }
+      const line = pts.map(p => [p.lat, p.lng]);
+      const trail = LL.polyline(line, { color: "#1a73e8", weight: 5, opacity: 0.9 }).addTo(hm);
+      const start = LL.marker(line[0], { icon: dot(LL, "#2fb36d") }).addTo(hm).bindPopup("Start " + fmtT(pts[0].at));
+      const last = LL.marker(line[line.length - 1], { icon: dot(LL, "#e03a3a") }).addTo(hm).bindPopup("Last seen " + fmtT(pts[pts.length - 1].at));
+      layers.push(trail, start, last);
+
+      let total = 0;
+      for (let i = 1; i < pts.length; i++) total += dist(pts[i - 1], pts[i]);
+
+      const stops = [];
+      let anchor = pts[0];
+      let from = 0;
+      const closeGroup = to => {
+        const dur = pts[to].at - pts[from].at;
+        if (dur >= 120000) stops.push({ lat: anchor.lat, lng: anchor.lng, from: pts[from].at, to: pts[to].at, dur });
+      };
+      for (let i = 1; i < pts.length; i++) {
+        if (dist(anchor, pts[i]) > 25) {
+          closeGroup(i - 1);
+          anchor = pts[i];
+          from = i;
+        }
+      }
+      closeGroup(pts.length - 1);
+
+      stops.forEach((s, n) => {
+        const m = LL.marker([s.lat, s.lng], { icon: LL.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14], html: `<div class="dr-stop">${n + 1}</div>` }) }).addTo(hm);
+        m.bindPopup(`Stopped ${fmtMins(s.dur)}<br>${fmtT(s.from)} - ${fmtT(s.to)}`);
+        layers.push(m);
+      });
+
+      hm.fitBounds(trail.getBounds().pad(0.2));
+      box.querySelector("[data-hstats]").innerHTML = `<div><small>Distance</small><b>${(total / 1000).toFixed(1)} km</b></div><div><small>Stops (2+ min)</small><b>${stops.length}</b></div><div><small>Last seen</small><b>${esc(fmtT(pts[pts.length - 1].at))}</b></div>`;
+      box.querySelector("[data-stops]").innerHTML = stops.length
+        ? stops.map((s, n) => `<div class="dr-stop-row"><i>${n + 1}</i><span>${esc(fmtT(s.from))} - ${esc(fmtT(s.to))}</span><b>${esc(fmtMins(s.dur))}</b></div>`).join("")
+        : "<span>No stops of 2 minutes or more.</span>";
+    };
+
+    box.querySelectorAll("[data-days]").forEach(b => { b.onclick = () => draw(Number(b.dataset.days)); });
+    draw(1);
+  };
+
   const act = async (id, what) => {
     const d = drivers.get(id);
     if (!d) return;
+    if (what === "history") return openHistory(d);
     if (what === "copy") {
       try { await navigator.clipboard.writeText(driverLink(d.dkey)); toast("success", "Link copied", d.name); } catch (e) {}
       return;
