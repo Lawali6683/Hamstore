@@ -212,19 +212,6 @@ async function reverse(lat, lng) {
   }
 }
 
-$("bLoc").onclick = async () => {
-  $("bLocS").textContent = x("locWait");
-  try {
-    where = await getPos(12000);
-    $("bLocS").textContent = x("locOk");
-    const a = await reverse(where.lat, where.lng);
-    if (a && !$("bAddr").value.trim()) $("bAddr").value = a.slice(0, 200);
-  } catch (e) {
-    where = null;
-    $("bLocS").textContent = x("locNo");
-  }
-};
-
 function saveLast(o) {
   try { localStorage.setItem("hs_last_order", JSON.stringify(o)); } catch (e) {}
 }
@@ -257,13 +244,13 @@ $("form").addEventListener("submit", async e => {
   if (name.length < 2) return toast("error", t("buy.e.name"));
   if (!/^[0-9+\s-]{7,20}$/.test(phone)) return toast("error", t("buy.e.phone"));
   if (address.length < 5) return toast("error", t("buy.e.addr"));
+  if (!chosen) return toast("error", getLang() === "ha" ? "Zaɓi adireshinka daga jerin da ya bayyana." : "Choose your address from the list that appears.");
   if (!shot) return toast("error", t("buy.e.shot"));
 
   busy = true;
   $("bSubmit").disabled = true;
   showLoading(x("sending"));
   try {
-    if (!where) { try { where = await getPos(4000); } catch (err) { where = null; } }
     let link = shotLink;
     if (!link) {
       try { link = await upP; } catch (err) { link = ""; }
@@ -273,8 +260,8 @@ $("form").addEventListener("submit", async e => {
       p_name: name,
       p_phone: phone,
       p_address: address,
-      p_lat: where ? where.lat : null,
-      p_lng: where ? where.lng : null,
+      p_lat: chosen.lat,
+      p_lng: chosen.lng,
       p_proof: link,
       p_items: items.map(i => ({ id: i.id, qty: i.qty }))
     });
@@ -339,6 +326,106 @@ window.addEventListener("langchange", () => {
   if (items.length) renderItems();
   layout();
 });
+
+let chosen = null;
+let sugTimer = 0;
+let sugSeq = 0;
+let sugList = [];
+let leafletP = null;
+let preview = null;
+let pin = null;
+const addrIn = $("bAddr");
+const sugBox = $("bSug");
+const hint = $("bAddrHint");
+
+const loadLeafletOnce = () => {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletP) return leafletP;
+  leafletP = new Promise((res, rej) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
+    document.head.appendChild(css);
+    const js = document.createElement("script");
+    js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+    js.onload = () => res(window.L);
+    js.onerror = () => { leafletP = null; rej(new Error("map")); };
+    document.head.appendChild(js);
+  });
+  return leafletP;
+};
+
+async function showPreview(c) {
+  const L = await loadLeafletOnce();
+  $("bMap").hidden = false;
+  if (!preview) {
+    preview = L.map("bMap", { zoomControl: true, scrollWheelZoom: false }).setView([c.lat, c.lng], 17);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(preview);
+    pin = L.marker([c.lat, c.lng]).addTo(preview);
+  } else {
+    pin.setLatLng([c.lat, c.lng]);
+    preview.setView([c.lat, c.lng], 17);
+  }
+  setTimeout(() => preview.invalidateSize(), 200);
+}
+
+const hintSet = (text, kind) => { hint.textContent = text || ""; hint.className = "addrhint" + (kind ? " " + kind : ""); };
+const hideSug = () => { sugBox.hidden = true; };
+
+function renderSug(list) {
+  sugList = list;
+  if (!list.length) {
+    sugBox.innerHTML = "";
+    hideSug();
+    hintSet(getLang() === "ha" ? "Ba a sami adireshi ba. Rubuta titi, unguwa, gari da jiha." : "No match yet. Add the street, area, city and state.", "bad");
+    return;
+  }
+  sugBox.innerHTML = list.map((it, i) => `<li><button type="button" data-i="${i}"><i class="fa-solid fa-location-dot"></i><span>${esc(it.display_name)}</span></button></li>`).join("");
+  sugBox.hidden = false;
+  hintSet(getLang() === "ha" ? "Zaɓi adireshinka daga jerin." : "Choose your address from the list.", "");
+}
+
+async function findAddr(q) {
+  const seq = ++sugSeq;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=ng&accept-language=${getLang()}&q=${encodeURIComponent(q)}`);
+    const list = await r.json();
+    if (seq === sugSeq) renderSug(Array.isArray(list) ? list : []);
+  } catch (e) {
+    if (seq === sugSeq) hintSet(getLang() === "ha" ? "Matsalar intanet. Ka sake gwadawa." : "Search failed. Check your internet.", "bad");
+  }
+}
+
+addrIn.addEventListener("input", () => {
+  if (chosen && addrIn.value.trim() !== chosen.name) {
+    chosen = null;
+    $("bMap").hidden = true;
+  }
+  clearTimeout(sugTimer);
+  const q = addrIn.value.trim();
+  if (q.length < 3) {
+    hideSug();
+    hintSet(getLang() === "ha" ? "Fara rubuta adireshinka..." : "Start typing your address...", "");
+    return;
+  }
+  hintSet(getLang() === "ha" ? "Ana nema..." : "Searching...", "");
+  sugTimer = setTimeout(() => findAddr(q), 350);
+});
+
+sugBox.addEventListener("click", e => {
+  const btn = e.target.closest("[data-i]");
+  if (!btn) return;
+  const it = sugList[Number(btn.dataset.i)];
+  if (!it) return;
+  chosen = { lat: Number(it.lat), lng: Number(it.lon), name: it.display_name };
+  addrIn.value = it.display_name;
+  hideSug();
+  hintSet(getLang() === "ha" ? "Taswira tana nuna wannan adireshi. Idan daidai ne, ka tura." : "The map shows this exact address. If it is correct, send your order.", "ok");
+  showPreview(chosen).catch(() => hintSet(getLang() === "ha" ? "Ba a loda taswira ba." : "Map could not load.", "bad"));
+});
+
+addrIn.addEventListener("keydown", e => { if (e.key === "Escape") hideSug(); });
+document.addEventListener("click", e => { if (!e.target.closest(".addrbox")) hideSug(); });
 
 setDevice();
 initLang();
