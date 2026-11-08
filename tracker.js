@@ -3,6 +3,7 @@ import { showLoading, hideLoading } from "./loading.js";
 
 const MOVING_EVERY = 15000;
 const STOPPED_EVERY = 60000;
+const ID_OK = /^[A-Z0-9][A-Z0-9\/\-]{3,39}$/;
 
 const $ = id => document.getElementById(id);
 
@@ -18,7 +19,7 @@ let battery = null;
 let creds = { id: "", key: "" };
 
 const read = k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
-const confirmed = read("hs_confirmed") === "1" && read("hs_vid") && read("hs_vkey");
+const confirmed = read("hs_confirmed") === "1" && !!read("hs_vid") && !!read("hs_vkey");
 
 if (navigator.getBattery) {
   navigator.getBattery().then(b => {
@@ -131,11 +132,13 @@ window.addEventListener("beforeunload", e => {
 function start() {
   const id = confirmed ? read("hs_vid") : $("vId").value.trim().toUpperCase();
   const key = confirmed ? read("hs_vkey") : $("vKey").value.trim();
-  if (!/^VEH\d{4,}$/.test(id)) return toast("error", "Vehicle ID", "Enter the ID like VEH0001.");
-  if (key.length < 8) return toast("error", "Vehicle key", "Enter the vehicle key.");
+  if (!ID_OK.test(id)) return toast("error", "Vehicle ID", "Enter the ID exactly as in your link.");
+  if (key.length < 6) return toast("error", "Vehicle key", "Enter the vehicle key.");
   if (!navigator.geolocation) return toast("error", "Not supported", "This phone cannot share its location.");
   creds = { id, key };
-  if (!confirmed) { try { localStorage.setItem("hs_vid", id); localStorage.setItem("hs_vkey", key); } catch (e) {} }
+  if (!confirmed) {
+    try { localStorage.setItem("hs_vid", id); localStorage.setItem("hs_vkey", key); } catch (e) {}
+  }
   running = true;
   waitingFix = true;
   lastSent = 0;
