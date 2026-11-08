@@ -468,6 +468,7 @@ document.addEventListener("click", e => {
       const o = orders.find(z2 => z2.dcode === card.dataset.d);
       if (o) openRoute(o);
     }
+    if (k === "agree") agreeTerms();
     if (k === "slip") openSlip();
     if (k === "confirm") confirmDelivery();
     if (k === "back") closeRoute();
@@ -479,8 +480,34 @@ document.addEventListener("click", e => {
 });
 
 $("zoom").addEventListener("click", () => show("zoom", false));
+$("agreeChk").addEventListener("change", e => { $("agreeBtn").disabled = !e.target.checked; });
+
+async function agreeTerms() {
+  if (!$("agreeChk").checked) return toast("error", "Confirm", "Tick the box first.");
+  busy = true;
+  try {
+    const { data, error } = await supabase.rpc("driver_confirm_terms", { p_key: key });
+    if (error) throw error;
+    if (!data || !data.ok) throw new Error("denied");
+    me = { ...(me || {}), confirmed: true, done_today: (me && me.done_today) || 0 };
+    enterDashboard();
+  } catch (e) {
+    toast("error", x("net"), "");
+  } finally {
+    busy = false;
+  }
+}
 
 function enterDashboard() {
+  if (!me || !me.confirmed) {
+    show("sSignin", false);
+    show("sHead", false);
+    show("sList", false);
+    show("sRoute", false);
+    show("sTerms", true);
+    return;
+  }
+  show("sTerms", false);
   show("sSignin", false);
   show("sHead", true);
   show("sList", true);
@@ -531,7 +558,7 @@ async function signIn(raw) {
       return setMsg("loginMsg", msg, "bad");
     }
     key = data.dkey;
-    me = { name: data.name, done_today: 0 };
+    me = { name: data.name, done_today: 0, confirmed: !!data.confirmed };
     try { localStorage.setItem(KEY, key); } catch (err) {}
     enterDashboard();
   } catch (e) {
@@ -571,7 +598,7 @@ if (start) {
       return;
     }
     key = data.dkey;
-    me = { name: data.name, done_today: 0 };
+    me = { name: data.name, done_today: 0, confirmed: !!data.confirmed };
     try { localStorage.setItem(KEY, key); } catch (e) {}
     enterDashboard();
   }, () => signOut(x("net")));
