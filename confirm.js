@@ -4,10 +4,16 @@ import { toast } from "./allui.js";
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
-const read = k => params.get(k) || hash.get(k) || "";
+const pick = (...names) => {
+  for (const n of names) {
+    const v = params.get(n) || hash.get(n);
+    if (v) return v;
+  }
+  return "";
+};
 
-let code = read("code") || read("id") || "";
-let key = read("key") || read("k") || "";
+let code = pick("c", "code", "id");
+let key = pick("k", "key");
 let vehicle = null;
 let busy = false;
 const done = { 1: false, 2: false, 3: false, 4: false };
@@ -30,32 +36,40 @@ function paint() {
   });
 }
 
-async function verify() {
-  const c = ($("mCode").value || code).trim().toUpperCase();
-  const k = ($("mKey").value || key).trim();
-  if (!c || !k) {
-    $("manual").hidden = false;
-    return toast("error", "Enter your ID and key", "Use the link we sent you.");
+function showManual() {
+  $("manual").hidden = false;
+}
+
+async function doVerify() {
+  if (!code && $("mCode").value) code = $("mCode").value.trim();
+  if (!key && $("mKey").value) key = $("mKey").value.trim();
+  if (!code || !key) {
+    showManual();
+    toast("error", "Open the link again", "The link from your message is incomplete.");
+    return false;
   }
   busy = true;
   paint();
   try {
-    const { data, error } = await supabase.rpc("confirm_vehicle_lookup", { p_code: c, p_key: k });
+    const { data, error } = await supabase.rpc("confirm_vehicle_lookup", { p_code: code, p_key: key });
     if (error) throw error;
     if (!data || !data.ok) {
-      $("manual").hidden = false;
-      const msg = data && data.code === "wait" ? "Too many attempts. Wait 10 minutes." : "Check the ID and key in your link.";
-      return toast("error", "ID not found", msg);
+      showManual();
+      const msg = data && data.code === "wait" ? "Too many attempts. Wait 10 minutes." : "This link is not valid. Ask the office to send it again.";
+      toast("error", "Vehicle not found", msg);
+      return false;
     }
     code = data.code;
-    key = k;
     vehicle = data;
     $("vTitle").textContent = data.name || data.code;
     $("vCode").textContent = data.code + (data.plate ? " · " + data.plate : "");
     $("vbox").hidden = false;
+    $("manual").hidden = true;
     done[1] = true;
+    return true;
   } catch (e) {
     toast("error", "Could not check", "Check your internet and try again.");
+    return false;
   } finally {
     busy = false;
     paint();
@@ -69,14 +83,24 @@ function askLocation() {
   });
 }
 
-async function keepScreen() {
+async function doLocation() {
+  const ok = await askLocation();
+  done[2] = ok;
+  if (!ok) toast("error", "Location blocked", "Allow location for this site in the browser settings, then press Allow location again.");
+  paint();
+  return ok;
+}
+
+async function doScreen() {
   try {
     if ("wakeLock" in navigator) await navigator.wakeLock.request("screen");
   } catch (e) {}
+  done[3] = true;
+  paint();
   return true;
 }
 
-async function commit() {
+async function doCommit() {
   busy = true;
   paint();
   try {
@@ -91,38 +115,40 @@ async function commit() {
       localStorage.setItem("hs_confirmed", "1");
     } catch (e) {}
     done[4] = true;
-    toast("success", "Confirmed", "Tracking will start now.");
+    toast("success", "Confirmed", "Tracking starts now.");
     setTimeout(() => { location.href = "tracker.html"; }, 900);
+    return true;
   } catch (e) {
-    toast("error", "Could not confirm", "Check the ID and try again.");
+    toast("error", "Could not confirm", "Check your internet and try again.");
+    return false;
   } finally {
     busy = false;
     paint();
   }
 }
 
+async function autoRun() {
+  if (!(await doVerify())) return;
+  if (!(await doLocation())) return;
+  await doScreen();
+  await doCommit();
+}
+
 steps.forEach(el => {
   const n = Number(el.dataset.step);
-  el.querySelector("button").addEventListener("click", async () => {
-    if (n === 1) return verify();
-    if (n === 2) {
-      const ok = await askLocation();
-      if (!ok) return toast("error", "Location blocked", "Allow location for this site in the browser settings.");
-      done[2] = true;
-      return paint();
-    }
-    if (n === 3) {
-      done[3] = await keepScreen();
-      return paint();
-    }
-    if (n === 4) return commit();
+  el.querySelector("button").addEventListener("click", () => {
+    if (n === 1) return doVerify();
+    if (n === 2) return doLocation();
+    if (n === 3) return doScreen();
+    if (n === 4) return doCommit();
   });
 });
 
 if (code && key) {
   $("manual").hidden = true;
-  verify();
+  paint();
+  autoRun();
 } else {
-  $("manual").hidden = false;
+  showManual();
+  paint();
 }
-paint();
