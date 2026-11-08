@@ -1,4 +1,5 @@
 const SB_URL = "https://eqbrczrlxwffvizjcdvu.supabase.co";
+const CODE_OK = /^[A-Za-z0-9][A-Za-z0-9\/\-]{3,39}$/;
 
 const reply = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -23,7 +24,7 @@ async function db(env, path, init = {}) {
 const same = (a, b) => {
   a = String(a || "");
   b = String(b || "");
-  if (a.length !== b.length || !a.length) return false;
+  if (!a.length || a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
@@ -45,33 +46,36 @@ export async function onRequestPost({ request, env }) {
     return reply({ ok: false }, 400);
   }
 
-  const id = String(input.id || "");
+  const code = String(input.id || "").trim();
+  const key = String(input.key || "");
   const lat = Number(input.lat);
   const lng = Number(input.lng);
   const speed = Math.max(0, Math.min(300, Number(input.speed) || 0));
 
-  if (!/^VEH\d{4,}$/.test(id) || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+  if (!CODE_OK.test(code) || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return reply({ ok: false }, 400);
   }
   if (!env.SUPABASE_API_KEY) return reply({ ok: false }, 500);
 
   try {
-    const veh = await db(env, `vehicles?select=key&id=eq.${id}`);
-    if (!veh || !veh.length || !same(veh[0].key, input.key)) return reply({ ok: false }, 401);
+    const veh = await db(env, `vehicles?select=id,key&code=eq.${encodeURIComponent(code)}&limit=1`);
+    if (!veh || !veh.length || !same(veh[0].key, key)) return reply({ ok: false }, 401);
+    const vid = String(veh[0].id);
+    const vq = encodeURIComponent(vid);
 
-    const prevRows = await db(env, `tracking?select=lat,lng,ts&vehicle_id=eq.${id}`);
+    const prevRows = await db(env, `tracking?select=lat,lng,ts&vehicle_id=eq.${vq}&limit=1`);
     const prev = prevRows && prevRows[0];
     const now = Date.now();
 
     const head = num(input.head);
     const bat = num(input.bat);
     const rec = {
-      vehicle_id: id,
+      vehicle_id: vid,
       lat,
       lng,
       speed,
       ts: now,
-      head: head !== null ? Math.round(head) % 360 : null,
+      head: head !== null ? ((Math.round(head) % 360) + 360) % 360 : null,
       bat: bat !== null ? Math.max(0, Math.min(100, Math.round(bat))) : null,
     };
 
@@ -85,7 +89,7 @@ export async function onRequestPost({ request, env }) {
       await db(env, "trails", {
         method: "POST",
         headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ vehicle_id: id, lat, lng, t: now }),
+        body: JSON.stringify({ vehicle_id: vid, lat, lng, t: now }),
       });
     }
     return reply({ ok: true });
