@@ -8,6 +8,24 @@ await requireAdmin("veh");
 
 const $ = id => document.getElementById(id);
 const PHONE = /^[0-9+\s-]{7,20}$/;
+const ROUTER = /^[A-Za-z0-9][A-Za-z0-9\-_:.]{3,39}$/;
+const TYPES = [
+  ["", "Vehicle type"],
+  ["cargo", "Cargo truck"],
+  ["long", "Long-distance vehicle"],
+  ["delivery", "Delivery van or car"],
+  ["moto", "Delivery motorcycle"]
+];
+
+const form = $("form");
+const submitBtn = form.querySelector('button[type="submit"]');
+const extra = document.createElement("div");
+extra.className = "veh-extra";
+extra.innerHTML = `<div class="field"><i class="fa-solid fa-truck-fast lead"></i><select id="vType">${TYPES.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></div>
+  <div class="field"><i class="fa-solid fa-wifi lead"></i><input id="vRouter" type="text" maxlength="40" placeholder="Router ID inside the vehicle (optional)" autocomplete="off" autocapitalize="characters"></div>`;
+if (submitBtn) form.insertBefore(extra, submitBtn);
+else form.appendChild(extra);
+
 const slots = {
   driver: photoSlot($("sDriver"), { kind: "face", label: "Driver photo", optional: true }),
   plate: photoSlot($("sPlate"), { kind: "plate", label: "Plate number photo" }),
@@ -16,7 +34,7 @@ const slots = {
 };
 
 function resetForm() {
-  $("form").reset();
+  form.reset();
   $("phone2Wrap").hidden = true;
   $("addPhone").hidden = false;
   Object.values(slots).forEach(s => s.clear());
@@ -24,12 +42,12 @@ function resetForm() {
 
 $("open").onclick = () => {
   $("open").hidden = true;
-  $("form").hidden = false;
+  form.hidden = false;
   $("vName").focus();
 };
 $("cancel").onclick = () => {
   resetForm();
-  $("form").hidden = true;
+  form.hidden = true;
   $("open").hidden = false;
 };
 $("addPhone").onclick = () => {
@@ -56,11 +74,12 @@ function showSuccess(v) {
   const text = messageText(v);
   const subject = "Your Hamstore vehicle ID " + v.code;
   const box = $("ok");
+  const extras = [v.vehicleType ? esc(v.vehicleType) : "", v.routerId ? "Router " + esc(v.routerId) : ""].filter(Boolean).join(" · ");
   box.innerHTML = `<div class="panel okcard">
     <button class="okx" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     <div class="okmark"><i class="fa-solid fa-check"></i></div>
     <h3>Vehicle registered</h3>
-    <p>${esc(v.name)} (${esc(v.plate)}) for ${esc(v.driverName)}. Send the ID and link to the driver.</p>
+    <p>${esc(v.name)} (${esc(v.plate)}) for ${esc(v.driverName)}${extras ? " · " + extras : ""}. Send the ID and link to the driver.</p>
     <div class="bigcode">${esc(v.code)}</div>
     <div class="sendrow">
       <button class="btn sm" type="button" data-act="email"><i class="fa-solid fa-envelope-circle-check"></i>Send email</button>
@@ -76,7 +95,7 @@ function showSuccess(v) {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (act === "another") {
       box.innerHTML = "";
-      $("form").hidden = false;
+      form.hidden = false;
       $("open").hidden = true;
       $("vName").focus();
     }
@@ -98,7 +117,7 @@ function showSuccess(v) {
   };
 }
 
-$("form").addEventListener("submit", async e => {
+form.addEventListener("submit", async e => {
   e.preventDefault();
   const name = $("vName").value.trim();
   const driverName = $("dName").value.trim();
@@ -106,22 +125,33 @@ $("form").addEventListener("submit", async e => {
   const phone2 = $("phone2Wrap").hidden ? "" : $("dPhone2").value.trim();
   const plate = $("vPlate").value.trim().toUpperCase();
   const email = $("vEmail").value.trim().toLowerCase();
+  const vehicleType = $("vType").value;
+  const routerId = $("vRouter").value.trim().toUpperCase();
   if (name.length < 2) return toast("error", "Vehicle name", "Enter the vehicle name.");
   if (driverName.length < 2) return toast("error", "Driver name", "Enter the driver name.");
   if (!PHONE.test(phone)) return toast("error", "Phone number", "Enter a valid driver phone number.");
   if (phone2 && !PHONE.test(phone2)) return toast("error", "Second number", "Enter a valid second number or remove it.");
   if (plateKey(plate).length < 3) return toast("error", "Plate number", "Enter the plate number.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return toast("error", "Email", "Enter a valid email.");
+  if (!vehicleType) return toast("error", "Vehicle type", "Choose the vehicle type: cargo, long-distance, delivery van or motorcycle.");
+  if (routerId && !ROUTER.test(routerId)) return toast("error", "Router ID", "Enter the router ID exactly as printed on the device (letters, numbers, - _ : .).");
   if (!slots.plate.has()) return toast("error", "Plate photo", "Take a photo of the plate number.");
   if (!slots.vehicle.has()) return toast("error", "Vehicle photo", "Take a photo of the vehicle.");
 
-  showLoading("Checking plate number...");
+  showLoading("Checking plate and router...");
   try {
     const pk = plateKey(plate);
     const dup = must(await supabase.from("vehicles").select("id").eq("plate_key", pk).limit(1));
     if (dup && dup.length) {
       hideLoading();
       return toast("error", "Already registered", "This plate number is already in the system.");
+    }
+    if (routerId) {
+      const rdup = must(await supabase.from("vehicles").select("id").eq("router_id", routerId).limit(1));
+      if (rdup && rdup.length) {
+        hideLoading();
+        return toast("error", "Router already used", "This router ID is already linked to another vehicle.");
+      }
     }
     hideLoading();
     showLoading("Uploading photos...");
@@ -140,18 +170,24 @@ $("form").addEventListener("submit", async e => {
       key = randomKey();
       const { data, error } = await supabase.from("vehicles").insert({
         code, code_key: codeKey(code), key, name, driver_name: driverName,
-        phone, phone2: phone2 || null, plate, plate_key: pk, email, photos
+        phone, phone2: phone2 || null, plate, plate_key: pk, email,
+        vehicle_type: vehicleType, router_id: routerId || null, photos
       }).select("id").single();
       if (!error) { saved = data; break; }
-      if (error.code === "23505" && String(error.message + error.details).includes("plate_key")) {
+      const text = String(error.message || "") + String(error.details || "");
+      if (error.code === "23505" && text.includes("plate_key")) {
         hideLoading();
         return toast("error", "Already registered", "This plate number is already in the system.");
+      }
+      if (error.code === "23505" && text.includes("router_id")) {
+        hideLoading();
+        return toast("error", "Router already used", "This router ID is already linked to another vehicle.");
       }
       if (error.code !== "23505") throw error;
     }
     if (!saved) throw new Error("code");
 
-    const rec = { name, driverName, phone, plate, email, code, key, createdAt: Date.now(), photos };
+    const rec = { name, driverName, phone, plate, email, code, key, createdAt: Date.now(), photos, vehicleType, routerId };
     if (phone2) rec.phone2 = phone2;
     resetForm();
     toast("success", "Vehicle registered", code);
