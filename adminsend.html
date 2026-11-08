@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06130d">
+<title>Hamstore Admin - Vehicles and messages</title>
+<link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
+<link rel="stylesheet" href="allui.css">
+<link rel="stylesheet" href="ui2.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="adm">
+<main class="wrap">
+  <div class="hubhead">
+    <h1>Vehicles and messages</h1>
+    <p>Send each vehicle ID to its driver by SMS, email or Gmail, and see who has confirmed.</p>
+  </div>
+
+  <section class="panel tplcard">
+    <h3><i class="fa-solid fa-pen-to-square"></i> Message template</h3>
+    <textarea id="tpl" rows="6" class="tplbox"></textarea>
+    <div class="tplbtns">
+      <button class="ghost" id="resetTpl" type="button"><i class="fa-solid fa-rotate-left"></i>Reset</button>
+      <button class="btn" id="saveTpl" type="button"><i class="fa-solid fa-floppy-disk"></i>Save template</button>
+    </div>
+  </section>
+
+  <div class="field sendsearch"><i class="fa-solid fa-magnifying-glass lead"></i><input id="search" type="search" autocomplete="off" placeholder="Search name, plate, driver, ID or phone"></div>
+
+  <div class="listhead"><h2>Vehicles</h2><span class="count" id="count">0</span></div>
+  <div id="list"></div>
+  <div class="empty" id="empty" hidden><i class="fa-solid fa-truck" style="font-size:28px"></i><p>No vehicles yet. Register one first.</p></div>
+</main>
+
+<script type="module" src="allui.js"></script>
+<script type="module" src="adminsend.js"></script>
+</body>
+</html>
