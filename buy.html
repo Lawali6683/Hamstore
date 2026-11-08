@@ -77,9 +77,13 @@
       <form id="form" novalidate class="bform">
         <div class="fld"><input id="bName" type="text" maxlength="80" autocomplete="name" data-i18n-ph="buy.name" placeholder="Your full name"></div>
         <div class="fld"><input id="bPhone" type="tel" autocomplete="tel" data-i18n-ph="buy.phone" placeholder="Phone number"></div>
-        <div class="fld"><textarea id="bAddr" maxlength="200" data-i18n-ph="buy.addr" placeholder="Where should we deliver?"></textarea></div>
-        <div class="locr"><button class="tp" id="bLoc" type="button"><i class="fa-solid fa-location-crosshairs"></i> <span class="en">Use my current location</span><span class="ha">Yi amfani da wurina yanzu</span></button><span class="stt2" id="bLocS"></span></div>
-        <div class="shotp">
+        <div class="addrbox">
+          <div class="fld"><i class="fa-solid fa-location-dot lead"></i><input id="bAddr" type="text" maxlength="200" autocomplete="off" placeholder="Type your address: street, area, city, state"></div>
+          <ul class="sug" id="bSug" hidden></ul>
+          <p class="addrhint" id="bAddrHint"></p>
+          <div class="addrmap" id="bMap" hidden></div>
+        </div>
+                <div class="shotp">
           <label class="bt blue"><i class="fa-solid fa-image"></i><span data-i18n="buy.pick">Choose screenshot</span><input id="bFile" type="file" accept="image/*" hidden></label>
           <div class="upst" id="bUp" hidden></div>
           <img id="bPrev" alt="" hidden>
