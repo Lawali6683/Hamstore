@@ -84,7 +84,15 @@
           <div class="addrmap" id="bMap" hidden></div>
         </div>
                 <div class="shotp">
-          <label class="bt blue"><i class="fa-solid fa-image"></i><span data-i18n="buy.pick">Choose screenshot</span><input id="bFile" type="file" accept="image/*" hidden></label>
+          <p class="proofnote"><i class="fa-solid fa-receipt"></i><span class="en">After you pay, you must send the payment slip. Choose the screenshot from your gallery, or open the camera and take a photo of the slip now.</span><span class="ha">Bayan ka biya, dole ka tura shedar biyan kuɗi. Ka zaɓi hoton screenshot daga gallery, ko ka buɗe kyamara ka ɗauki hoton slip yanzu.</span></p>
+          <div class="proofbtns">
+            <label class="bt blue"><i class="fa-solid fa-image"></i><span><span class="en">Upload screenshot</span><span class="ha">Loda screenshot</span></span><input id="bFile" type="file" accept="image/*" hidden></label>
+            <button class="bt camb" id="bCam" type="button"><i class="fa-solid fa-camera"></i><span><span class="en">Open camera</span><span class="ha">Buɗe kyamara</span></span></button>
+          </div>
+          <div class="camBox" id="camBox" hidden>
+            <video id="camVid" playsinline muted></video>
+            <div class="camRow"><button class="bt ghost" id="camCancel" type="button"><span class="en">Cancel</span><span class="ha">Soke</span></button><button class="bt red" id="camShot" type="button"><i class="fa-solid fa-circle-dot"></i><span class="en">Take photo</span><span class="ha">Ɗauki hoto</span></button></div>
+          </div>
           <div class="upst" id="bUp" hidden></div>
           <img id="bPrev" alt="" hidden>
         </div>
