@@ -244,7 +244,6 @@ $("form").addEventListener("submit", async e => {
   if (name.length < 2) return toast("error", t("buy.e.name"));
   if (!/^[0-9+\s-]{7,20}$/.test(phone)) return toast("error", t("buy.e.phone"));
   if (address.length < 5) return toast("error", t("buy.e.addr"));
-  if (!chosen) return toast("error", getLang() === "ha" ? "Zaɓi adireshinka daga jerin da ya bayyana." : "Choose your address from the list that appears.");
   if (!shot) return toast("error", t("buy.e.shot"));
 
   busy = true;
@@ -260,8 +259,8 @@ $("form").addEventListener("submit", async e => {
       p_name: name,
       p_phone: phone,
       p_address: address,
-      p_lat: chosen.lat,
-      p_lng: chosen.lng,
+      p_lat: chosen ? chosen.lat : null,
+      p_lng: chosen ? chosen.lng : null,
       p_proof: link,
       p_items: items.map(i => ({ id: i.id, qty: i.qty }))
     });
