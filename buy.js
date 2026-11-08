@@ -460,3 +460,50 @@ hideLoading();
 renderItems();
 layout();
 setStep(accounts.length ? 2 : 1);
+
+const camMsg = (en, ha) => (getLang() === "ha" ? ha : en);
+let camStream = null;
+
+function stopCam() {
+  if (camStream) camStream.getTracks().forEach(z => z.stop());
+  camStream = null;
+  $("camVid").srcObject = null;
+  $("camBox").hidden = true;
+}
+
+$("bCam").onclick = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return toast("error", camMsg("Camera is not available on this device. Upload a screenshot instead.", "Kyamara ba ta aiki a wannan na'ura. Ka loda screenshot."));
+  }
+  stopCam();
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } }, audio: false });
+  } catch (e) {
+    return toast("error", camMsg("Camera is blocked. Allow camera access, or upload a screenshot.", "An hana kyamara. Ba da izini, ko ka loda screenshot."));
+  }
+  $("camVid").srcObject = camStream;
+  $("camBox").hidden = false;
+  try { await $("camVid").play(); } catch (e) {}
+};
+
+$("camCancel").onclick = stopCam;
+
+$("camShot").onclick = () => {
+  const v = $("camVid");
+  if (!v.videoWidth) return;
+  const cv = document.createElement("canvas");
+  cv.width = v.videoWidth;
+  cv.height = v.videoHeight;
+  cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height);
+  cv.toBlob(b => {
+    if (!b) return toast("error", camMsg("Could not take the photo. Try again.", "Ba a iya ɗaukar hoto ba. Sake gwadawa."));
+    const file = new File([b], "payment-slip.jpg", { type: "image/jpeg" });
+    stopCam();
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    $("bFile").files = dt.files;
+    $("bFile").dispatchEvent(new Event("change"));
+  }, "image/jpeg", 0.92);
+};
+
+window.addEventListener("pagehide", stopCam);
