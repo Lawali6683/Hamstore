@@ -4,41 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#06130d">
-<title>Hamstore - Vehicle Tracker</title>
+<title>Hamstore - Vehicle tracker</title>
 <link rel="icon" href="https://i.imgur.com/UXH5q5w.png">
 <link rel="stylesheet" href="allui.css">
-<link rel="stylesheet" href="ui2.css">
+<link rel="stylesheet" href="tracker.css">
 </head>
-<body>
-<main class="stage">
-  <section class="panel box center">
-    <img class="logo xl" src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore">
-    <h2>Vehicle tracker</h2>
-    <p class="sub" id="sub">Share this vehicle location with Hamstore.</p>
+<body class="trk">
+<main class="trk-wrap">
+  <header class="trk-head">
+    <img src="https://i.imgur.com/UXH5q5w.png" alt="Hamstore">
+    <div>
+      <h1>Vehicle tracker</h1>
+      <p id="sub">Find a driver or vehicle below.</p>
+    </div>
+  </header>
 
-    <div class="vbox" id="veh" hidden><b id="vName"></b><span class="meta" id="vCode"></span></div>
-
-    <form id="form" novalidate>
-      <div id="manual">
-        <div class="field"><i class="fa-solid fa-truck lead"></i><input id="vId" type="text" placeholder="Vehicle ID, for example VEH0001" autocomplete="off" autocapitalize="characters"></div>
-        <div class="field"><i class="fa-solid fa-key lead"></i><input id="vKey" type="password" placeholder="Vehicle key" autocomplete="off"><button type="button" class="eye" data-eye="vKey" aria-label="Show password"><i class="fa-solid fa-eye"></i></button></div>
+  <section class="card mine" id="mine" hidden>
+    <div class="mine-top">
+      <span class="livedot" id="liveDot"></span>
+      <div>
+        <b id="vName"></b>
+        <small id="vCode"></small>
       </div>
-      <button class="btn full" type="submit" id="toggle"><i class="fa-solid fa-play"></i><span>Start tracking</span></button>
-    </form>
-
-    <div style="margin-top:18px"><span class="live" id="live"><i></i><span>Not tracking</span></span></div>
-
-    <div class="tstat">
+    </div>
+    <p class="livetxt" id="liveTxt">Not tracking</p>
+    <div class="stats">
       <div><small>Speed</small><b id="sSpeed">-</b></div>
       <div><small>GPS accuracy</small><b id="sAcc">-</b></div>
       <div><small>Last sent</small><b id="sLast">-</b></div>
       <div><small>Updates sent</small><b id="sCount">0</b></div>
     </div>
+    <button class="big" id="toggle" type="button"><i class="fa-solid fa-play"></i><span>Start tracking</span></button>
+    <button class="ghost" id="forget" type="button">Stop and forget this phone</button>
+    <p class="note">Keep this page open and the screen on while driving. Tracking pauses if the phone locks or the browser is closed.</p>
+  </section>
 
-    <button class="ghost sm" type="button" id="forget" hidden>Use a different vehicle</button>
-    <p class="note">Keep this page open and the screen on while driving. Tracking pauses if the phone locks or the browser is closed. If the phone is switched off, Hamstore will show it as offline.</p>
+  <section class="card dir">
+    <h2><i class="fa-solid fa-users-viewfinder"></i> Drivers and vehicles</h2>
+    <label class="search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" type="search" autocomplete="off" placeholder="Search driver, name, ID, plate, phone or router"></label>
+    <p class="msg" id="listMsg">Loading...</p>
+    <div class="vlist" id="list"></div>
   </section>
 </main>
+
+<div class="sheet-wrap" id="detail" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <button class="xbtn" id="closeDetail" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<div class="viewer" id="viewer" hidden>
+  <button class="xbtn" id="viewerX" type="button" aria-label="Close photo"><i class="fa-solid fa-xmark"></i></button>
+  <img id="viewerImg" alt="">
+</div>
 
 <script type="module" src="allui.js"></script>
 <script type="module" src="tracker.js"></script>
